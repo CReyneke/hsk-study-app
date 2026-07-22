@@ -1,7 +1,7 @@
 /* Stale-while-revalidate for the static app shell, so it opens (mostly) offline once
    visited. GitHub API sync calls are a different origin and are explicitly skipped
    below -- this worker must never intercept or cache those. */
-const CACHE_NAME = "hsk3-study-v2";
+const CACHE_NAME = "hsk3-study-v3";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -11,7 +11,10 @@ const CORE_ASSETS = [
   "./js/state.js",
   "./js/ui.js",
   "./js/app.js",
-  "./js/sync.js"
+  "./js/sync.js",
+  "./ui-assets/pixel-font.ttf",
+  "./ui-assets/icon-star.png",
+  "./ui-assets/icon-coin.png"
 ];
 
 self.addEventListener("install", e=>{

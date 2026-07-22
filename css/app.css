@@ -21,6 +21,12 @@
     --body-font:"Inter","Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     --zh-font:"Noto Serif SC","Songti SC","SimSun","PingFang SC","Microsoft YaHei","Heiti SC",serif;
     --zh-font-ui:"Noto Sans SC","PingFang SC","Microsoft YaHei","Heiti SC",sans-serif;
+    --pixel-font:"SproutPixel",var(--sans);
+  }
+  @font-face{
+    font-family:"SproutPixel";
+    src:url("ui-assets/pixel-font.ttf") format("truetype");
+    font-display:swap;
   }
   *{box-sizing:border-box;}
   html,body{min-height:100%;}
@@ -28,10 +34,10 @@
 
   /* ---- Section label pill pattern ---- */
   .eyebrow{
-    display:inline-block;font-family:var(--sans);font-weight:800;font-size:14px;
-    text-transform:uppercase;letter-spacing:.08em;
+    display:inline-block;font-family:var(--pixel-font);font-weight:800;font-size:15px;
+    text-transform:uppercase;letter-spacing:.04em;
     background:var(--black);color:var(--yellow);
-    padding:5px 14px;border-radius:999px;margin-bottom:10px;
+    padding:6px 14px;border-radius:999px;margin-bottom:10px;
   }
   .sec-title{
     font-family:var(--display);font-weight:800;letter-spacing:-.01em;
@@ -270,7 +276,7 @@
   .progressbar{height:12px;background:var(--white);border:2px solid var(--black);border-radius:6px;overflow:hidden;margin-top:6px;}
   .progressbar > div{height:100%;background:var(--green-bright);}
   footer{text-align:center;color:var(--white);font-size:13px;padding:16px 20px;background:var(--ink);font-weight:600;}
-  .badge{display:inline-block;font-size:11px;padding:4px 10px;border-radius:999px;background:var(--black);color:var(--yellow);margin-left:6px;text-transform:uppercase;letter-spacing:.03em;font-weight:800;}
+  .badge{display:inline-block;font-family:var(--pixel-font);font-size:13px;padding:4px 10px;border-radius:999px;background:var(--black);color:var(--yellow);margin-left:6px;text-transform:uppercase;letter-spacing:.02em;font-weight:800;}
   select,input[type=text]{font-size:14px;padding:8px 12px;border:2px solid var(--black);border-radius:10px;background:var(--white);color:var(--black);font-family:var(--body-font);}
   .tok{cursor:pointer;border-radius:4px;padding:0 1px;}
   .tok:hover{background:var(--yellow);}
@@ -347,7 +353,7 @@
   .avatar .mascot-alt{width:72%;height:72%;display:flex;align-items:center;justify-content:center;}
   .avatar .mascot-alt img{width:100%;height:100%;}
   .char-info{flex:1;min-width:200px;}
-  .char-title{color:var(--red);font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.04em;font-family:var(--sans);}
+  .char-title{color:var(--red);font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.03em;font-family:var(--pixel-font);}
   .char-level{font-size:24px;font-weight:800;margin:2px 0;color:var(--black);font-family:var(--display);}
   .xp-bar{height:16px;background:var(--white);border:2px solid var(--black);border-radius:999px;overflow:hidden;margin-top:6px;position:relative;}
   .xp-bar > div{height:100%;background:var(--blue);position:relative;transition:width .5s;border-radius:999px;}
@@ -357,7 +363,11 @@
     background-size:200% 100%;animation:shimmer 2.4s linear infinite;
   }
   @keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-50% 0;}}
-  .xp-label{font-size:12px;color:var(--sub);margin-top:4px;font-weight:700;}
+  .xp-label{font-size:12px;color:var(--sub);margin-top:4px;font-weight:700;display:flex;align-items:center;gap:4px;}
+  .icon-inline{
+    width:14px;height:14px;flex-shrink:0;object-fit:contain;
+    image-rendering:pixelated;image-rendering:-moz-crisp-edges;image-rendering:crisp-edges;
+  }
   .rpg-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:10px;}
   .rpg-stat{background:var(--white);border:2px solid var(--black);border-radius:14px;padding:8px;text-align:center;}
   .rpg-stat .icon{font-size:22px;}
@@ -441,6 +451,13 @@
      plain <img> at a per-context size (tab-hero, avatar, toast-icon, mascot-pop, etc). */
   .mascot-bounce{position:relative;display:inline-block;}
   .mascot-alt{position:relative;display:inline-block;}
+  /* Mascot art is genuine pixel art (Sprout Lands UI pack) now, not a smooth
+     illustration -- crisp nearest-neighbor scaling instead of the browser's default
+     blur keeps it looking intentional at every display size used above. */
+  .tab-hero img, .avatar img, .toast-icon img, .mascot-pop img, .empty-mascot img,
+  .mascot-alt img{
+    image-rendering:pixelated;image-rendering:-moz-crisp-edges;image-rendering:crisp-edges;
+  }
 
   /* Daily phrase card on Today tab */
   .daily-phrase{background:var(--green-lime);border:3px solid var(--black);border-radius:16px;padding:12px 16px;margin-bottom:10px;box-shadow:4px 4px 0 var(--black);}

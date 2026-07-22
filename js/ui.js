@@ -542,7 +542,7 @@ function renderToday(app){
         <div class="char-info">
           <div class="char-title">${t.title} · Level ${lv.level}</div>
           <div class="xp-bar"><div style="width:${pct}%"></div></div>
-          <div class="xp-label">${lv.into} / ${lv.need} XP to next level</div>
+          <div class="xp-label"><img src="ui-assets/icon-star.png" class="icon-inline" alt="">${lv.into} / ${lv.need} XP to next level</div>
         </div>
         <button class="secondary" id="goProgress">View character sheet</button>
       </div>
@@ -2400,7 +2400,7 @@ function renderProgress(app){
           <div class="char-title">${t.title}</div>
           <div class="char-level">Level ${lv.level}</div>
           <div class="xp-bar"><div style="width:${pct}%"></div></div>
-          <div class="xp-label">${lv.into} / ${lv.need} XP to next level (${state.xp} total XP)</div>
+          <div class="xp-label"><img src="ui-assets/icon-star.png" class="icon-inline" alt="">${lv.into} / ${lv.need} XP to next level (${state.xp} total XP)</div>
         </div>
       </div>
       <div class="rpg-stats">
