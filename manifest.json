@@ -1,0 +1,15 @@
+{
+  "name": "HSK 3.0 Level 3 Study",
+  "short_name": "HSK3 Study",
+  "description": "Spaced-repetition study app for HSK 3.0 Level 3 vocabulary and grammar.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "welcome-pixel-banner.png", "sizes": "1020x1020", "type": "image/png", "purpose": "any" },
+    { "src": "welcome-pixel-banner.png", "sizes": "1020x1020", "type": "image/png", "purpose": "maskable" }
+  ]
+}

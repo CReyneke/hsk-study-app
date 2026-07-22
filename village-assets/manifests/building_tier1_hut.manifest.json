@@ -1,0 +1,119 @@
+{
+  "source_image": "building_tier1_hut.png",
+  "tile_size": 64,
+  "sheet_width_px": 192,
+  "sheet_height_px": 192,
+  "columns": 3,
+  "rows": 3,
+  "note": "Fill in 'name' and 'category' for each non-empty cell. x, y, width, height are pixel coordinates in the ORIGINAL (unscaled) sheet - use these directly in code, ignore the preview image's scale factor.",
+  "cells": [
+    {
+      "row": 0,
+      "col": 0,
+      "name": "variant_a",
+      "category": "building",
+      "empty": false,
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\0_0.png"
+    },
+    {
+      "row": 0,
+      "col": 1,
+      "name": "variant_b",
+      "category": "building",
+      "empty": false,
+      "x": 64,
+      "y": 0,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\0_1.png"
+    },
+    {
+      "row": 0,
+      "col": 2,
+      "name": "variant_c",
+      "category": "building",
+      "empty": false,
+      "x": 128,
+      "y": 0,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\0_2.png"
+    },
+    {
+      "row": 1,
+      "col": 0,
+      "name": null,
+      "category": null,
+      "empty": false,
+      "x": 0,
+      "y": 64,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\1_0.png"
+    },
+    {
+      "row": 1,
+      "col": 1,
+      "name": null,
+      "category": null,
+      "empty": false,
+      "x": 64,
+      "y": 64,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\1_1.png"
+    },
+    {
+      "row": 1,
+      "col": 2,
+      "name": null,
+      "category": null,
+      "empty": false,
+      "x": 128,
+      "y": 64,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\1_2.png"
+    },
+    {
+      "row": 2,
+      "col": 0,
+      "name": null,
+      "category": null,
+      "empty": false,
+      "x": 0,
+      "y": 128,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\2_0.png"
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "name": null,
+      "category": null,
+      "empty": false,
+      "x": 64,
+      "y": 128,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\2_1.png"
+    },
+    {
+      "row": 2,
+      "col": 2,
+      "name": null,
+      "category": null,
+      "empty": false,
+      "x": 128,
+      "y": 128,
+      "width": 64,
+      "height": 64,
+      "cell_image": "building_tier1_hut_cells\\2_2.png"
+    }
+  ]
+}
