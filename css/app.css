@@ -44,27 +44,6 @@
   h1 img{height:34px;vertical-align:-9px;margin:0 6px;background:var(--yellow);border-radius:50%;padding:4px;}
   .sub{color:var(--yellow);font-size:13px;margin-bottom:8px;font-weight:700;letter-spacing:.02em;}
 
-  /* ---- Marquee ticker (home tab only) ---- */
-  .ticker{
-    width:100%;overflow:hidden;background:var(--yellow);color:var(--black);
-    border-top:3px solid var(--black);border-bottom:3px solid var(--black);
-    padding:8px 0;white-space:nowrap;position:relative;
-  }
-  .ticker[hidden]{display:none;}
-  .ticker-track{display:inline-flex;align-items:center;animation:tickerScroll 26s linear infinite;will-change:transform;}
-  .ticker-track span.item{
-    font-family:var(--sans);font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:.03em;
-    padding:0 18px;display:inline-flex;align-items:center;gap:18px;flex-shrink:0;
-  }
-  .ticker-track span.item::after{
-    content:"";width:9px;height:9px;background:var(--black);
-    clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);flex-shrink:0;
-  }
-  @keyframes tickerScroll{
-    0%{transform:translateX(0);}
-    100%{transform:translateX(-50%);}
-  }
-
   /* ---- Chevron dividers ---- */
   .chevron-divider{display:flex;justify-content:center;align-items:center;gap:10px;padding:6px 0;background:var(--white);}
   .chevron-divider svg{display:block;}
@@ -161,6 +140,35 @@
     nav button .nav-arrow{width:18px;height:18px;top:7px;right:7px;}
   }
 
+  @media (max-width: 640px){
+    header{padding:12px 16px 4px;}
+    h1{font-size:18px;}
+    h1 img{height:28px;}
+    main{padding:10px 12px 20px;}
+    .card{padding:12px 14px;margin-bottom:8px;}
+
+    /* ---- Flashcards: strip everything but the card itself so a full review (recall,
+       reveal, grade) fits on one screen with zero scrolling -- setup controls (voice,
+       HSK-set picker, progress header) are one-time/occasional, not needed every card. */
+    .app-shell:has(nav button.active[data-tab="flash"]) .voice-picker,
+    .app-shell:has(nav button.active[data-tab="flash"]) .flash-level-picker,
+    .app-shell:has(nav button.active[data-tab="flash"]) .flash-progress-card{
+      display:none;
+    }
+    .flash-top-row .lvl-badge,
+    .flash-top-row .know-badge{display:none;}
+    .flash-top-row{justify-content:center;}
+    .hanzi{font-size:50px;margin:10px 0;}
+
+    /* ---- Library: hide the level/familiarity/know%% tag chips, keep hanzi/pinyin/English
+       scannable at a glance -- the tags are still there once a row is tapped open. */
+    .lib-row .lvl-badge,
+    .lib-row .cat-badge,
+    .lib-row .know-badge{display:none;}
+    .lib-row{gap:8px;}
+    .lib-row .lib-py{min-width:0;}
+  }
+
   .card{
     background:var(--card);
     border:3px solid var(--black);
@@ -232,6 +240,15 @@
   }
   .grade-btns button{flex:1;min-width:0;font-family:var(--sans);font-size:13px;font-weight:800;border:2px solid var(--black);border-radius:999px;padding:11px 8px;cursor:pointer;color:var(--black);transition:transform .1s;text-transform:uppercase;}
   .grade-btns button:active{transform:scale(.96);}
+  .flash-controls .icon-btn{flex:0 0 auto;width:44px;font-size:18px;padding:8px 0;}
+  /* Collapsed-by-default "Sentences ▾" dropdown toggle (mirrors the reference minimal
+     flashcard layout) -- keeps a revealed card's extra detail from adding height until
+     actually asked for. */
+  .flash-detail-toggle{
+    display:block;width:100%;text-align:center;background:none;border:none;
+    color:var(--sub);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.06em;
+    padding:8px 0 2px;cursor:pointer;
+  }
   .g-again{background:var(--red);color:var(--white);}
   .g-hard{background:var(--yellow-warm);}
   .g-good{background:var(--green-bright);color:var(--white);}

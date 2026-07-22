@@ -593,11 +593,15 @@ let flashPos = 0;
 let flashRevealed = false;
 let lastAutoplayedIdx = null;
 let flashSentPyShown = false;
+// Collapsed by default (like a "Sentences ▾" dropdown) so the example sentence/phrase
+// doesn't add height until asked for -- keeps a card's full review fitting on one mobile
+// screen without scrolling, on top of the fixed-to-bottom grade buttons.
+let flashDetailOpen = false;
 
 function renderFlash(app){
   flashQueue = getDueCardIndices();
   flashPos = 0;
-  flashRevealed = false; flashSentPyShown = false;
+  flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false;
   lastAutoplayedIdx = null;
   renderFlashCard(app);
 }
@@ -636,7 +640,7 @@ function extraPracticeSample(n){
 // least one level must stay active. Persists via saveState() into state.flashLevels.
 function renderFlashLevelPicker(app){
   const wrap = document.createElement("div");
-  wrap.className = "card";
+  wrap.className = "card flash-level-picker";
   const active = activeFlashLevels();
   wrap.innerHTML = `
     <div class="muted" style="font-weight:800;margin-bottom:6px;">Study which HSK set(s)?</div>
@@ -688,13 +692,13 @@ function renderFlashCard(app){
     if(remaining > 0){
       document.getElementById("moreNew").onclick = ()=>{
         flashQueue = introduceExtraCards(10);
-        flashPos = 0; flashRevealed = false; flashSentPyShown = false; lastAutoplayedIdx = null;
+        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
         renderFlashCard(app);
       };
     }
     document.getElementById("morePractice").onclick = ()=>{
       flashQueue = extraPracticeSample(15);
-      flashPos = 0; flashRevealed = false; flashSentPyShown = false; lastAutoplayedIdx = null;
+      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
       renderFlashCard(app);
     };
     return;
@@ -717,13 +721,13 @@ function renderFlashCard(app){
     if(remaining > 0){
       document.getElementById("moreNew").onclick = ()=>{
         flashQueue = introduceExtraCards(10);
-        flashPos = 0; flashRevealed = false; flashSentPyShown = false; lastAutoplayedIdx = null;
+        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
         renderFlashCard(app);
       };
     }
     document.getElementById("morePractice").onclick = ()=>{
       flashQueue = extraPracticeSample(15);
-      flashPos = 0; flashRevealed = false; flashSentPyShown = false; lastAutoplayedIdx = null;
+      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
       renderFlashCard(app);
     };
     return;
@@ -748,9 +752,10 @@ function renderFlashCard(app){
     <div class="pinyin" id="pyLine">${flashRevealed ? pinyin : ""}</div>
     <div class="meaning" id="enLine">${flashRevealed ? eng : ""}</div>
     <div class="flash-controls">
-      <button class="secondary" id="playBtn">🔊 Play sound again</button>
+      <button class="secondary icon-btn" id="playBtn" title="Play sound again">🔊</button>
       <button class="secondary" id="revealBtn">${flashRevealed? "Hide" : "Show pinyin + meaning"}</button>
     </div>
+    ${flashRevealed && (hasSentence || hasPhrase) ? `<button class="flash-detail-toggle" id="flashDetailToggle">${flashDetailOpen ? "▴" : "▾"} Sentences</button>` : ""}
     <div id="flashDetail"></div>
     <div class="grade-btns" id="gradeBtns" style="visibility:${flashRevealed?'visible':'hidden'}">
       <button class="g-again" data-g="0">Again</button>
@@ -769,8 +774,16 @@ function renderFlashCard(app){
   document.getElementById("playBtn").onclick=()=>speak(hanzi);
   document.getElementById("revealBtn").onclick=()=>{ flashRevealed = !flashRevealed; renderFlashCard(app); };
   // Flip-back detail: example sentence + related phrase, when the word has one.
-  // Gracefully renders nothing if neither is available for this word.
+  // Collapsed behind the "Sentences" toggle above by default so a revealed card
+  // still fits on one mobile screen without scrolling; gracefully renders nothing
+  // if neither is available for this word.
   if(flashRevealed && (hasSentence || hasPhrase)){
+    document.getElementById("flashDetailToggle").onclick = ()=>{
+      flashDetailOpen = !flashDetailOpen;
+      renderFlashCard(app);
+    };
+  }
+  if(flashRevealed && flashDetailOpen && (hasSentence || hasPhrase)){
     const detailEl = document.getElementById("flashDetail");
     detailEl.innerHTML = `
       <div class="flash-detail">
@@ -822,7 +835,7 @@ function renderFlashCard(app){
       const afterPct = knowledgePercent(idx);
       showKnowledgeDelta(card.querySelector(".know-badge") || b, beforePct, afterPct);
       flashPos++;
-      flashRevealed = false; flashSentPyShown = false;
+      flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false;
       setTimeout(()=> renderFlashCard(app), 320);
     };
   });

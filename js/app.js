@@ -38,9 +38,6 @@ function render(){
     currentTab = "today";
     setActiveTab("today");
   }
-  // Marquee ticker only shows on the Today/home tab.
-  const ticker = document.getElementById("homeTicker");
-  if(ticker) ticker.hidden = currentTab !== "today";
   // The story-reader audiobook playback bar is fixed/global (appended to <body>,
   // not inside #app), so switching tabs away from the reader must stop it
   // explicitly here -- otherwise TTS keeps talking and the bar keeps floating
