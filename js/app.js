@@ -1,8 +1,7 @@
 /* ============================ ROUTING / RENDER ============================ */
-// Village is the landing/home tab; the old "Today" tab's content now lives in the
-// slide-out stats accordion (see renderStatsPanel) instead of being its own tab.
+const NAV_ARROW_SVG = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M7.17418 1.66471L0.574525 1.66471L0.589256 6.74452e-05L10.0173 6.90346e-05L10.0173 9.42815L8.3527 9.44288L8.3527 2.84322L1.17851 10.0174L3.1533e-06 8.8389L7.17418 1.66471Z" fill="black"/></svg>`;
 const TABS = [
-  {tab:"village", label:"Village"},
+  {tab:"today", label:"Today"},
   {tab:"flash", label:"Flashcards"},
   {tab:"library", label:"Library"},
   {tab:"reading", label:"Reading"},
@@ -10,11 +9,13 @@ const TABS = [
   {tab:"practice", label:"Practice"},
   {tab:"progress", label:"Progress"}
 ];
-let currentTab = "village";
+let currentTab = "today";
 const tabsEl = document.getElementById("tabs");
-tabsEl.innerHTML = TABS.map(t=>`
-  <button data-tab="${t.tab}" class="${t.tab==='village'?'active':''}">
-    <span class="nav-label pixel-font">${t.label}</span>
+tabsEl.innerHTML = TABS.map((t,i)=>`
+  <button data-tab="${t.tab}" class="${t.tab==='today'?'active':''}">
+    <span class="nav-idx">${String(i+1).padStart(2,'0')}</span>
+    <span class="nav-label">${t.label}</span>
+    <span class="nav-arrow">${NAV_ARROW_SVG}</span>
   </button>
 `).join("");
 tabsEl.addEventListener("click", e=>{
@@ -27,33 +28,19 @@ tabsEl.addEventListener("click", e=>{
 
 document.getElementById("dateLine").textContent = new Date().toDateString() + " — day " + dayOfYear() + " of the year";
 
-// ---- Stats accordion (slides out from the right; holds the old Today-tab content) ----
-let statsOpen = false;
-function toggleStats(){
-  statsOpen = !statsOpen;
-  document.getElementById("statsPanel").classList.toggle("open", statsOpen);
-  if(statsOpen) renderStatsPanel();
-}
-function renderStatsPanel(){
-  const c = document.getElementById("statsPanelInner");
-  c.innerHTML = "";
-  renderToday(c);
-}
-document.getElementById("statsHandle").onclick = toggleStats;
-
 function render(){
   const app = document.getElementById("app");
   app.innerHTML = "";
   // Defensive: if currentTab somehow holds a value that's no longer a valid nav
-  // tab (e.g. a stale in-memory value from an older save), fall back to the
-  // Village home tab instead of rendering a blank page.
+  // tab (e.g. the removed "listening" tab, from a stale in-memory value), fall
+  // back to Today instead of rendering a blank page.
   if(!TABS.some(t=>t.tab===currentTab)){
-    currentTab = "village";
-    setActiveTab("village");
+    currentTab = "today";
+    setActiveTab("today");
   }
-  // Marquee ticker only shows on the Village/home tab.
+  // Marquee ticker only shows on the Today/home tab.
   const ticker = document.getElementById("homeTicker");
-  if(ticker) ticker.hidden = currentTab !== "village";
+  if(ticker) ticker.hidden = currentTab !== "today";
   // The story-reader audiobook playback bar is fixed/global (appended to <body>,
   // not inside #app), so switching tabs away from the reader must stop it
   // explicitly here -- otherwise TTS keeps talking and the bar keeps floating
@@ -61,15 +48,14 @@ function render(){
   // in-tab navigation between dashboard/chapters/reader), so this is the "leaving
   // Reading entirely" case.
   if(!(currentTab === "reading" && typeof readingView !== "undefined" && readingView === "reader")) stopPlayback();
-  if(currentTab === "village") renderVillage(app);
+  if(currentTab === "today") renderToday(app);
   else if(currentTab === "flash") renderFlash(app);
   else if(currentTab === "library") renderLibrary(app);
   else if(currentTab === "reading") renderReading(app);
+  else if(currentTab === "listening") renderListening(app);
   else if(currentTab === "grammar") renderGrammar(app);
   else if(currentTab === "practice") renderPractice(app);
   else if(currentTab === "progress") renderProgress(app);
-  // Keep the stats accordion's numbers live even when state changes on another tab.
-  if(statsOpen) renderStatsPanel();
 }
 
 /* ---- Study time tracking ----
@@ -115,7 +101,6 @@ function formatStudyTime(ms){
   const m = totalMin % 60;
   return h > 0 ? (h + "h " + m + "m") : (m + "m");
 }
-
 
 /* ============================ INIT ============================ */
 checkAchievements();

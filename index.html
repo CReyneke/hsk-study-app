@@ -40,23 +40,16 @@
 <nav id="tabs"></nav>
 <main id="app"></main>
 </div>
-<aside id="statsPanel" class="stats-panel">
-  <button id="statsHandle" class="stats-handle pixel-font">Stats</button>
-  <div class="stats-panel-inner" id="statsPanelInner"></div>
-</aside>
-<footer>Vocabulary and grammar points sourced from the official 2025 HSK 3.0 syllabus (Level 3). Audio uses your browser's built-in Chinese text-to-speech.<br>Village art: "Sprout Lands" by Cup Nooble.</footer>
+<footer>Vocabulary and grammar points sourced from the official 2025 HSK 3.0 syllabus (Level 3). Audio uses your browser's built-in Chinese text-to-speech.</footer>
 
-<!-- Plain classic <script> tags (no type="module") on purpose: this app is opened
-     directly via file:// with no local server, and ES module imports (as well as
-     fetch() of the JSON sprite manifests) are blocked by CORS under file://. Classic
-     scripts share one global scope across files just like one big <script> block
-     would, so load order below IS the dependency order: data before anything that
-     reads it, state before anything that mutates it, and app.js dead last since it's
-     the one that actually calls render() and touches the DOM at the top level. -->
+<!-- Plain classic <script> tags (no type="module") on purpose: classic scripts share
+     one global scope across files just like one big <script> block would, so load
+     order below IS the dependency order: data before anything that reads it, state
+     before anything that mutates it, app.js is the one that calls render() and
+     touches the DOM at the top level, and sync.js loads last since it wraps
+     saveState() and needs everything above already defined. -->
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>
-<script src="js/sprite-manifest.js"></script>
-<script src="js/village.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
 <script src="js/sync.js"></script>

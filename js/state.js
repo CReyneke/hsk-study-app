@@ -45,11 +45,6 @@ function loadState(){
   // translation popup's bookmark icon, shape {word: true}. Not integrated with the
   // SRS system -- purely a save-for-later flag the Library/reader can show.
   s.savedWords = s.savedWords || {};
-  // additive: self-reported "learned" flags for GRAMMAR entries, shape {grammarIdx: true}.
-  // Grammar has no SRS hook of its own, so the Village's Grammar Tower (one floor per
-  // learned point) grows off this instead. One-directional by design (see
-  // markGrammarLearned) -- once true it stays true, same spirit as SRS mastery.
-  s.grammarLearned = s.grammarLearned || {};
   // additive: identities of the words/sentences used in each Practice-tab mode's
   // most-recently-completed session, keyed by mode ("fill"/"order"/"tf"/"match").
   // Consulted by buildRotatedOrder() so the next session in that mode prefers

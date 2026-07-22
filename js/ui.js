@@ -34,6 +34,26 @@ function pickVoice(){
 if("speechSynthesis" in window){
   pickVoice();
   speechSynthesis.onvoiceschanged = pickVoice;
+  // Mobile Safari/Chrome-on-iOS (WebKit under the hood either way) sometimes never
+  // fires voiceschanged and just populates getVoices() lazily a moment after the
+  // page loads, or only after the first tap -- a few delayed retries and one retry
+  // on first touch cost nothing and catch both cases without needing user action.
+  [300, 1000, 2500].forEach(ms=> setTimeout(pickVoice, ms));
+  document.addEventListener("touchend", pickVoice, {once:true, passive:true});
+  // iOS blocks the very first speechSynthesis.speak() call of a page's lifetime
+  // unless it's inside a real user-gesture handler; a silent one-word "unlock"
+  // utterance fired on the first tap anywhere satisfies that for the rest of the
+  // session, so later auto-play (e.g. a new flashcard appearing after grading)
+  // isn't silently dropped just because that particular call wasn't itself a tap.
+  const unlockSpeech = ()=>{
+    document.removeEventListener("touchend", unlockSpeech);
+    document.removeEventListener("click", unlockSpeech);
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  };
+  document.addEventListener("touchend", unlockSpeech, {once:true, passive:true});
+  document.addEventListener("click", unlockSpeech, {once:true});
 }
 function refreshVoiceSelect(){
   const sel = document.getElementById("voiceSelect");
@@ -75,6 +95,16 @@ function renderVoicePicker(container){
   refreshVoiceSelect();
   document.getElementById("voiceSelect").onchange = (e)=> setVoiceByName(decodeURIComponent(e.target.value));
   document.getElementById("voiceTest").onclick = ()=> speak("你好，欢迎学习汉语。");
+  // On iOS every browser (Chrome included) is required to use Apple's own speech
+  // engine, so Google's voices are never reachable there -- if no Chinese voice is
+  // installed at all yet, point at where to add one instead of just failing silently.
+  if(zhVoices.length === 0 && /iPad|iPhone|iPod/.test(navigator.userAgent)){
+    const hint = document.createElement("p");
+    hint.className = "muted";
+    hint.style.cssText = "font-size:12px;margin:4px 0 0;";
+    hint.textContent = "No Chinese voice installed. On iPhone: Settings → Accessibility → Spoken Content → Voices → Chinese, then download one (Enhanced/Premium quality sounds best).";
+    container.appendChild(hint);
+  }
 }
 
 /* ============================ SFX (synthesized, no audio files needed) ============================ */
@@ -2284,10 +2314,9 @@ function renderGrammar(app){
     if(!catGroup){ catGroup = {cat:g.cat, items:[]}; lvlGroup.cats.push(catGroup); }
     catGroup.items.push(g);
   });
-  const learnedCount = GRAMMAR.filter((g,i)=> state.grammarLearned && state.grammarLearned[i]).length;
   wrap.innerHTML = `
-    <div class="tab-hero">${mascotBounceImg("holding-ancient-scroll.png","")}<h3>Grammar points <span class="badge">${learnedCount} / ${GRAMMAR.length} learned</span></h3></div>
-    <p class="muted">Official HSK 3.0 grammar syllabus, levels 1-4, organized by category. Tap a word in any example to translate it. Mark a point as learned to add a floor to the Grammar Tower in your Village.</p>
+    <div class="tab-hero">${mascotBounceImg("holding-ancient-scroll.png","")}<h3>Grammar points <span class="badge">${GRAMMAR.length} total</span></h3></div>
+    <p class="muted">Official HSK 3.0 grammar syllabus, levels 1-4, organized by category. Tap a word in any example to translate it.</p>
     <div class="lib-filters" id="gramLevelFilters">
       <button data-lvl="all" class="${grammarLevelFilter==='all'?'active':''}">All</button>
       <button data-lvl="1" class="${grammarLevelFilter===1?'active':''}">HSK 1</button>
@@ -2314,15 +2343,12 @@ function renderGrammar(app){
         <div class="muted" style="font-weight:800;text-transform:uppercase;font-size:11px;margin:10px 0 2px;letter-spacing:.04em;">${catGroup.cat}</div>
         ${catGroup.items.map(g=>{
           const i = counter++;
-          const gramIdx = GRAMMAR.indexOf(g);
-          const learned = !!(state.grammarLearned && state.grammarLearned[gramIdx]);
           return `
             <div class="grammar-item">
               <h3>${g.name}</h3>
               <p class="muted">${g.expl}</p>
               <div class="zh" id="gramZh${i}">${tokenizeHanzi(g.zh)}</div>
               <div class="transbar" id="gramBar${i}">${g.pyen}</div>
-              <button class="gram-learn-btn ${learned?'learned':''}" data-gram-idx="${gramIdx}" ${learned?'disabled':''}>${learned ? '✓ Learned' : '☐ Mark as learned'}</button>
             </div>
           `;
         }).join("")}
@@ -2333,12 +2359,6 @@ function renderGrammar(app){
       wireTokClicks(document.getElementById("gramZh"+wireI), "gramBar"+wireI);
       wireI++;
     })));
-    listEl.querySelectorAll(".gram-learn-btn").forEach(btn=>{
-      btn.onclick = ()=>{
-        markGrammarLearned(Number(btn.dataset.gramIdx));
-        render();
-      };
-    });
   }
   renderGramList();
   wrap.querySelector("#gramSearch").oninput = (e)=>{

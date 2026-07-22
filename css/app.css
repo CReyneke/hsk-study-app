@@ -21,24 +21,10 @@
     --body-font:"Inter","Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     --zh-font:"Noto Serif SC","Songti SC","SimSun","PingFang SC","Microsoft YaHei","Heiti SC",serif;
     --zh-font-ui:"Noto Sans SC","PingFang SC","Microsoft YaHei","Heiti SC",sans-serif;
-
-    /* ---- Village (Sprout Lands asset pack, by Cup Nooble) ---- */
-    --grass:#c0d470; --grass-dark:#a3b85a;
-    --panel-cream:#e8cfa6; --panel-highlight:#f3e5c2; --panel-border:#aa7959; --panel-border-dark:#6b4b3a;
-    --pixel-font:"SproutPixel","Space Grotesk",var(--sans);
-    --bottom-nav-h:74px;
-  }
-  @font-face{
-    font-family:"SproutPixel";
-    src:url("../village-assets/pixel_font.ttf") format("truetype");
-    font-display:swap;
   }
   *{box-sizing:border-box;}
   html,body{min-height:100%;}
-  body{margin:0;font-family:var(--body-font);color:var(--ink);background:var(--bg);font-size:20px;line-height:1.2;display:flex;flex-direction:column;min-height:100vh;padding-bottom:var(--bottom-nav-h);}
-  .pixel-font{font-family:var(--pixel-font);letter-spacing:.02em;}
-  /* Crisp, un-blurred scaling for all Sprout Lands sprite crops. */
-  .sprite{image-rendering:pixelated;image-rendering:-moz-crisp-edges;image-rendering:crisp-edges;background-repeat:no-repeat;display:block;flex-shrink:0;}
+  body{margin:0;font-family:var(--body-font);color:var(--ink);background:var(--bg);font-size:20px;line-height:1.2;display:flex;flex-direction:column;min-height:100vh;}
 
   /* ---- Section label pill pattern ---- */
   .eyebrow{
@@ -86,57 +72,94 @@
   /* ---- App shell: normal top-to-bottom page flow ---- */
   .app-shell{display:flex;flex-direction:column;width:min(96vw,1600px);margin:0 auto;flex:1;}
 
-  /* Bottom pixel tab bar -- skill guilds live along the bottom of the screen,
-     like a game's action bar, instead of a top nav strip. */
+  /* Horizontal top nav strip: a row of landscape (wider-than-tall) flat-color blocks. */
   nav{
-    position:fixed;left:0;right:0;bottom:0;z-index:150;
-    display:flex;flex-direction:row;width:100%;height:var(--bottom-nav-h);
-    background:var(--panel-border-dark);padding:8px 6px;gap:5px;
-    border-top:4px solid var(--black);box-shadow:0 -4px 0 rgba(0,0,0,.15);
+    display:flex;flex-direction:row;flex-wrap:wrap;width:100%;
+    background:var(--white);padding:10px 12px;gap:6px;
+    position:sticky;top:0;z-index:50;border-bottom:3px solid var(--black);
   }
+  /* Rectangular landscape flat-color tile per nav item (units.gr-style). Equal-share flex so all
+     8 tabs sit on one row at desktop widths and shrink together rather than wrapping. */
   nav button{
-    font-family:var(--pixel-font);background:var(--panel-cream);border:3px solid var(--black);
-    cursor:pointer;color:var(--panel-border-dark);
-    border-radius:10px;transition:transform .1s,box-shadow .1s,background .1s;
-    flex:1 1 0;min-width:0;height:100%;padding:4px 2px;
-    display:flex;align-items:center;justify-content:center;text-align:center;
-    box-shadow:0 4px 0 var(--black);
-    font-size:clamp(9px,1.7vw,13px);letter-spacing:.01em;line-height:1.15;
+    font-family:var(--sans);background:var(--ink);border:3px solid var(--black);
+    cursor:pointer;color:var(--white);
+    border-radius:16px;transition:all .15s;text-transform:uppercase;letter-spacing:.02em;
+    position:relative;flex:1 1 0;min-width:0;max-width:none;height:60px;padding:8px 8px;
+    display:block;text-align:left;box-shadow:4px 4px 0 var(--black);
   }
-  nav button .nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-  nav button:hover{filter:brightness(1.05);}
-  nav button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--black);}
-  nav button.active{background:var(--grass);color:var(--black);transform:translateY(2px);box-shadow:0 2px 0 var(--black);}
+  nav button:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--black);}
+  nav button .nav-idx{
+    position:absolute;top:8px;left:10px;font-family:var(--display);
+    font-size:clamp(10px,1vw,14px);font-weight:800;color:var(--black);letter-spacing:0;
+  }
+  nav button .nav-label{
+    position:absolute;bottom:8px;left:10px;right:32px;
+    font-size:clamp(10px,1.05vw,14px);font-weight:800;color:var(--black);text-align:left;line-height:1.15;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  nav button .nav-arrow{
+    position:absolute;top:8px;right:8px;
+    display:flex;align-items:center;justify-content:center;width:clamp(18px,1.6vw,22px);height:clamp(18px,1.6vw,22px);
+    border-radius:50%;background:transparent;border:2px solid var(--black);flex-shrink:0;
+  }
+  nav button .nav-arrow svg path{fill:var(--black);}
+  nav button:hover{filter:brightness(1.04);}
+  nav button.active{outline:none;}
+  /* rotate flat accent color per tab (idle state uses a dimmer tint of its own color; active is full bold) */
+  nav button[data-tab="today"]{background:var(--yellow);}
+  nav button[data-tab="flash"]{background:var(--blue);}
+  nav button[data-tab="flash"] .nav-idx,nav button[data-tab="flash"] .nav-label,nav button[data-tab="flash"] .nav-arrow{color:var(--white);}
+  nav button[data-tab="flash"] .nav-idx{color:var(--white);}
+  nav button[data-tab="flash"] .nav-label{color:var(--white);}
+  nav button[data-tab="flash"] .nav-arrow{border-color:var(--white);}
+  nav button[data-tab="flash"] .nav-arrow svg path{fill:var(--white);}
+  nav button[data-tab="library"]{background:var(--yellow-warm);}
+  nav button[data-tab="reading"]{background:var(--orange);}
+  nav button[data-tab="listening"]{background:var(--purple);}
+  nav button[data-tab="listening"] .nav-idx,nav button[data-tab="listening"] .nav-label{color:var(--white);}
+  nav button[data-tab="listening"] .nav-arrow{border-color:var(--white);}
+  nav button[data-tab="listening"] .nav-arrow svg path{fill:var(--white);}
+  nav button[data-tab="grammar"]{background:var(--green);}
+  nav button[data-tab="grammar"] .nav-idx,nav button[data-tab="grammar"] .nav-label{color:var(--white);}
+  nav button[data-tab="grammar"] .nav-arrow{border-color:var(--white);}
+  nav button[data-tab="grammar"] .nav-arrow svg path{fill:var(--white);}
+  nav button[data-tab="practice"]{background:var(--red);}
+  nav button[data-tab="practice"] .nav-idx,nav button[data-tab="practice"] .nav-label{color:var(--white);}
+  nav button[data-tab="practice"] .nav-arrow{border-color:var(--white);}
+  nav button[data-tab="practice"] .nav-arrow svg path{fill:var(--white);}
+  nav button[data-tab="progress"]{background:var(--green-bright);}
+  nav button[data-tab="progress"] .nav-idx,nav button[data-tab="progress"] .nav-label{color:var(--white);}
+  nav button[data-tab="progress"] .nav-arrow{border-color:var(--white);}
+  nav button[data-tab="progress"] .nav-arrow svg path{fill:var(--white);}
+  nav button.active{box-shadow:6px 6px 0 var(--black);transform:translate(-2px,-2px);}
+  nav button.active:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--black);}
 
   main{flex:1;min-width:0;margin:0 auto;width:100%;padding:14px clamp(16px,3vw,40px) 24px;background:var(--bg);}
 
   /* Per-tab bold color context: rotates one flat color per section */
-  .app-shell:has(nav button.active[data-tab="flash"]) main{background:#eaf3ff;}
+  .app-shell:has(nav button.active[data-tab="today"]) main{background:var(--white);}
+  /* Extra bottom padding so the fixed .grade-btns bar never covers the last bit of
+     card content -- only needed on the flash tab, where that bar exists. */
+  .app-shell:has(nav button.active[data-tab="flash"]) main{background:#eaf3ff;padding-bottom:86px;}
   .app-shell:has(nav button.active[data-tab="library"]) main{background:#eaf3ff;}
   .app-shell:has(nav button.active[data-tab="reading"]) main{background:#fdeaea;}
+  .app-shell:has(nav button.active[data-tab="listening"]) main{background:#f5eafd;}
   .app-shell:has(nav button.active[data-tab="grammar"]) main{background:#e9f5f2;}
   .app-shell:has(nav button.active[data-tab="practice"]) main{background:#fdeef0;}
   .app-shell:has(nav button.active[data-tab="progress"]) main{background:#fff1e6;}
-  .app-shell:has(nav button.active[data-tab="village"]) main{background:var(--grass);}
 
-  /* ---- Stats accordion: slides out from the right edge, holds the old Today-tab content ---- */
-  .stats-panel{
-    position:fixed;top:8vh;right:0;height:84vh;width:min(380px,88vw);
-    background:var(--panel-cream);border:4px solid var(--black);border-right:none;
-    border-radius:16px 0 0 16px;box-shadow:-4px 4px 0 var(--black);
-    transform:translateX(calc(100% - 4px));transition:transform .28s ease;
-    z-index:200;overflow-y:auto;padding:14px 14px calc(var(--bottom-nav-h) + 14px);
+  @media (max-width: 900px){
+    /* Narrow viewports: horizontal-scroll the nav strip as a single row rather than squeezing
+       8 tabs illegibly small, so every rectangular block keeps its proportions. */
+    nav{
+      flex-wrap:nowrap;overflow-x:auto;padding:8px 10px;gap:8px;
+      -webkit-overflow-scrolling:touch;
+    }
+    nav button{flex:0 0 auto;min-width:132px;max-width:none;height:54px;padding:7px 10px;}
+    nav button .nav-label{font-size:12px;right:30px;}
+    nav button .nav-idx{font-size:12px;top:7px;left:10px;}
+    nav button .nav-arrow{width:18px;height:18px;top:7px;right:7px;}
   }
-  .stats-panel.open{transform:translateX(0);}
-  .stats-handle{
-    position:absolute;top:50%;left:-46px;transform:translateY(-50%);
-    writing-mode:vertical-rl;text-orientation:mixed;
-    background:var(--panel-cream);border:4px solid var(--black);border-right:none;
-    border-radius:12px 0 0 12px;padding:14px 8px;font-size:14px;letter-spacing:.05em;
-    cursor:pointer;color:var(--panel-border-dark);box-shadow:-3px 3px 0 var(--black);
-  }
-  .stats-handle:hover{filter:brightness(1.05);}
-  .stats-panel-inner .card{background:var(--panel-highlight);border-color:var(--panel-border-dark);}
 
   .card{
     background:var(--card);
@@ -196,8 +219,18 @@
   .pinyin{font-size:17px;text-align:center;color:var(--blue-dark);margin-bottom:2px;min-height:20px;font-weight:700;}
   .meaning{font-size:15px;text-align:center;color:var(--ink);min-height:20px;}
   .flash-controls{display:flex;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap;}
-  .grade-btns{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;}
-  .grade-btns button{flex:1;min-width:70px;font-family:var(--sans);font-size:13px;font-weight:800;border:2px solid var(--black);border-radius:999px;padding:11px 8px;cursor:pointer;color:var(--black);transition:transform .1s;text-transform:uppercase;}
+  /* Pinned to the bottom of the viewport (not the card) so grading a flashcard never
+     requires scrolling, no matter how tall the revealed example-sentence/phrase detail
+     gets. Centered to the same max-width as .app-shell on wide screens, full-bleed on
+     mobile. Space for it is reserved via the .app-shell:has(...) main padding-bottom
+     rule below the nav-color-context block. */
+  .grade-btns{
+    position:fixed;left:0;right:0;bottom:0;margin:0 auto;width:min(96vw,1600px);
+    display:flex;gap:8px;justify-content:center;flex-wrap:nowrap;z-index:120;
+    background:var(--white);border-top:3px solid var(--black);box-shadow:0 -4px 0 var(--black);
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  .grade-btns button{flex:1;min-width:0;font-family:var(--sans);font-size:13px;font-weight:800;border:2px solid var(--black);border-radius:999px;padding:11px 8px;cursor:pointer;color:var(--black);transition:transform .1s;text-transform:uppercase;}
   .grade-btns button:active{transform:scale(.96);}
   .g-again{background:var(--red);color:var(--white);}
   .g-hard{background:var(--yellow-warm);}
@@ -480,103 +513,3 @@
   .play-bar button.pb-mini{background:var(--white);border:2px solid var(--black);border-radius:999px;width:34px;height:34px;font-size:13px;cursor:pointer;flex-shrink:0;}
   .play-bar .pb-time{font-size:12px;font-weight:700;white-space:nowrap;}
   .play-bar input[type=range]{flex:1;accent-color:var(--red);}
-
-  /* ---- Village (pixel-art scene): one continuous island on water, in the spirit
-     of the Sprout Lands promo layouts, instead of a row of separate cards ---- */
-  .village-scene-wrap{padding:2px 0 0;}
-  .village-scene-header{font-size:20px;color:var(--black);margin-bottom:2px;}
-  .village-scene{
-    position:relative;margin-top:8px;padding:22px;
-    background-image:url('../village-assets/water.png');
-    background-size:96px 24px;image-rendering:pixelated;
-    border:4px solid var(--black);border-radius:22px;
-    box-shadow:6px 6px 0 var(--black);overflow:hidden;
-  }
-  .village-island{
-    position:relative;width:100%;aspect-ratio:16/11;
-    background:var(--grass);border:4px solid var(--black);
-    border-radius:44% 56% 52% 48% / 56% 48% 52% 44%;
-    box-shadow:0 0 0 8px rgba(255,255,255,.35) inset;
-  }
-  /* Every plot/prop is placed by percentage left/top within .village-island so the
-     scene reflows responsively instead of relying on fixed pixel coordinates. */
-  .plot{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;width:150px;}
-  .plot[data-goto]{cursor:pointer;}
-  .plot[data-goto]:hover .plot-building{filter:brightness(1.08);}
-  .plot[data-goto]:hover .plot-tag{text-decoration:underline;}
-  .plot-sign{margin-bottom:2px;}
-  .plot-building-wrap{position:relative;display:flex;align-items:flex-end;justify-content:center;min-height:90px;}
-  .plot.locked .plot-building{filter:grayscale(1) brightness(.85);opacity:.7;}
-  .locked-badge{position:absolute;top:4px;right:4px;filter:drop-shadow(0 1px 0 var(--black));}
-  /* bottom:-42px (not -6px) because the character sprite's actual feet sit well
-     above the bottom of its 120px scaled cell (the sheet pads extra room below
-     for taller action-frame poses elsewhere) -- this offset walks the visible
-     feet down to the building's ground line instead of floating mid-wall. */
-  .plot-workers{position:absolute;bottom:-42px;left:50%;transform:translateX(-50%);display:flex;gap:4px;justify-content:center;pointer-events:none;}
-  /* Short name+progress tag on the Sprout Lands "dialog box medium" texture,
-     instead of a free-floating paragraph -- keeps the scene scannable. */
-  .plot-tag{
-    position:relative;margin-top:6px;padding:8px 16px 10px 22px;min-width:126px;text-align:center;
-    background-image:url('../village-assets/dialog_box_medium.png');
-    background-size:100% 100%;background-repeat:no-repeat;
-    image-rendering:pixelated;
-  }
-  .plot-tag .plot-label{font-size:12px;color:var(--black);display:block;}
-  .plot-tag .plot-badge{font-size:10.5px;font-weight:800;color:var(--panel-border-dark);display:block;margin-top:2px;}
-  .deco{position:absolute;pointer-events:none;}
-  .deco-tree{transform:translate(-50%,-92%);}
-  .deco-tuft{transform:translate(-50%,-70%);}
-  /* Sprites are fixed pixel sizes (crisp pixel art doesn't scale well continuously),
-     so on narrow screens the island grows taller and every plot/tree shrinks in
-     place (scaled from its own ground-anchor point) instead of the buildings
-     overlapping each other. */
-  @media (max-width: 640px){
-    .village-island{aspect-ratio:16/15;}
-    .plot{transform:translate(-50%,-100%) scale(.74);}
-    .deco-tree{transform:translate(-50%,-92%) scale(.74);}
-    .deco-tuft{transform:translate(-50%,-70%) scale(.74);}
-  }
-  @media (max-width: 420px){
-    .village-island{aspect-ratio:16/19;}
-    .plot{transform:translate(-50%,-100%) scale(.6);}
-    .deco-tree{transform:translate(-50%,-92%) scale(.6);}
-    .deco-tuft{transform:translate(-50%,-70%) scale(.6);}
-  }
-
-  /* Villagers: background-position (walk frame) is animated by villagerFrames;
-     the wrapper's transform (side-to-side wander) is animated separately so the
-     two animations don't fight over the same CSS property. */
-  .villager-wrap{position:relative;animation:villagerWander 2.6s ease-in-out infinite;pointer-events:auto;}
-  .villager{animation:villagerFrames .8s steps(4) infinite;}
-  /* Standard CSS sprite-flipbook trick: only "from"/"to" keyframes (no 25%/50%/75%
-     stops) so steps(4) alone subdivides the single 0->100% span into 4 clean jumps.
-     Defining explicit percentage stops AND steps() together double-subdivides and
-     lands on garbage in-between background-position values -- don't reintroduce those. */
-  @keyframes villagerFrames{
-    from{background-position:0px -120px;}
-    to{background-position:-480px -120px;}
-  }
-  @keyframes villagerWander{0%,100%{transform:translateX(0);}50%{transform:translateX(14px);}}
-  .due-badge{position:absolute;top:-14px;right:-4px;animation:dueBounce 1s ease-in-out infinite;filter:drop-shadow(0 1px 0 var(--black));}
-  @keyframes dueBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
-
-  .village-quiet .villager-wrap{animation-play-state:paused;}
-  .village-quiet .villager{animation-play-state:paused;}
-  .village-quiet .plot-building{opacity:.75;filter:saturate(.7);}
-
-  .gram-learn-btn{font-family:var(--sans);font-weight:800;background:var(--white);border:2px solid var(--black);border-radius:999px;padding:5px 12px;font-size:11px;cursor:pointer;color:var(--black);text-transform:uppercase;letter-spacing:.02em;margin-top:6px;}
-  .gram-learn-btn.learned{background:var(--green-bright);color:var(--white);cursor:default;}
-
-  /* ---- Cross-device sync (floating button + bottom-sheet panel, reuses .word-pop-overlay/.card) ---- */
-  .sync-fab{
-    position:fixed;top:10px;left:10px;z-index:250;
-    font-size:12px;letter-spacing:.02em;
-    background:var(--white);border:3px solid var(--black);border-radius:999px;
-    padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;
-    box-shadow:3px 3px 0 var(--black);color:var(--black);
-  }
-  .sync-fab:hover{filter:brightness(1.05);}
-  .sync-fab .dot{width:9px;height:9px;border-radius:50%;background:var(--sub);flex-shrink:0;}
-  .sync-fab .dot.ok{background:var(--green-bright);}
-  .sync-fab .dot.pending{background:var(--yellow-warm);}
-  .sync-fab .dot.error{background:var(--red);}
