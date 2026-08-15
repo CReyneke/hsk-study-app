@@ -50,6 +50,14 @@ function loadState(){
   // Consulted by buildRotatedOrder() so the next session in that mode prefers
   // drawing from whatever wasn't just used, instead of risking an immediate repeat.
   s.lastPracticeSet = s.lastPracticeSet || {fill:[], order:[], tf:[], match:[]};
+  // additive: which HSK level sets Practice-tab sessions are drawn from, same
+  // shape/default as state.flashLevels but kept as its own independent choice.
+  if(!Array.isArray(s.practiceLevels) || s.practiceLevels.length === 0) s.practiceLevels = [1,2,3];
+  // additive: which knowledge tiers (wordCategory()) Practice-tab sessions are drawn
+  // from. "new" is deliberately not an option here -- every practice pool already
+  // requires isStartedWord() (a real example sentence you've seen before), so a word
+  // still in "new" can never appear regardless of this filter.
+  if(!Array.isArray(s.practiceCategories) || s.practiceCategories.length === 0) s.practiceCategories = ["learning","familiar","mastered"];
   return s;
 }
 function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -347,6 +355,15 @@ function activeFlashLevels(){
 }
 function isLevelEligible(idx){
   return activeFlashLevels().includes(vocabLevel(idx));
+}
+
+// Which HSK level sets / knowledge tiers are currently eligible for Practice-tab
+// sessions (independent of the flashcard-tab equivalents above).
+function activePracticeLevels(){
+  return (Array.isArray(state.practiceLevels) && state.practiceLevels.length) ? state.practiceLevels : [1,2,3];
+}
+function activePracticeCategories(){
+  return (Array.isArray(state.practiceCategories) && state.practiceCategories.length) ? state.practiceCategories : ["learning","familiar","mastered"];
 }
 function getDueCardIndices(){
   const now = Date.now();

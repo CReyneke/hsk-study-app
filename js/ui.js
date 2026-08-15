@@ -1629,13 +1629,22 @@ function isStartedWord(idx){
   const c = getCard(idx);
   return c && c.state !== "new";
 }
+// Same "started" requirement as above, plus the user's chosen HSK level and
+// knowledge-tier (wordCategory()) filters for the Practice tab. Used by every
+// Practice pool builder (fill-in-blank, word-order, true/false, word match) so
+// the level/knowledge picker applies consistently across all four modes.
+function isPracticeEligible(idx){
+  return isStartedWord(idx)
+    && activePracticeLevels().includes(vocabLevel(idx))
+    && activePracticeCategories().includes(wordCategory(idx));
+}
 
 // Recomputed fresh on every call (cheap: a few hundred words at most) rather than
 // memoized, since "started" status changes live as the learner studies flashcards.
 function buildPracticePool(){
   const pool = [];
   VOCAB.forEach((w, idx)=>{
-    if(!isStartedWord(idx)) return;
+    if(!isPracticeEligible(idx)) return;
     const extra = w[4];
     if(extra && extra.sentence && extra.sentence.zh && extra.sentence.zh.indexOf(w[0]) !== -1){
       pool.push({hanzi: w[0], py: w[1], en: w[2], sentence: extra.sentence});
@@ -1651,7 +1660,7 @@ function buildSentencePool(){
   const seen = new Set();
   const pool = [];
   VOCAB.forEach((w, idx)=>{
-    if(!isStartedWord(idx)) return;
+    if(!isPracticeEligible(idx)) return;
     const extra = w[4];
     if(extra && extra.sentence && extra.sentence.zh && extra.sentence.py && extra.sentence.en){
       if(seen.has(extra.sentence.zh)) return;
@@ -1815,12 +1824,24 @@ function renderPractice(app){
   wrap.innerHTML = `
     <div class="card">
       <div class="tab-hero">${mascotBounceImg("success-achievement-milestone.png","")}<h3>Practice</h3></div>
-      <p class="muted">${fillPool.length + sentPool.length * 2 + matchPool.length} practice questions available across four exercise types, HSK-exam style, drawn only from words you've started.</p>
+      <p class="muted">${fillPool.length + sentPool.length * 2 + matchPool.length} practice questions available across four exercise types, HSK-exam style, drawn only from words you've started -- filter by HSK level and how well you know them below.</p>
       <div class="lib-filters" id="practiceModeFilters">
         <button data-m="fill" class="${practiceMode==='fill'?'active':''}">Fill in the Blank (${fillPool.length})</button>
         <button data-m="order" class="${practiceMode==='order'?'active':''}">Word Order (${sentPool.length})</button>
         <button data-m="tf" class="${practiceMode==='tf'?'active':''}">True or False (${sentPool.length})</button>
         <button data-m="match" class="${practiceMode==='match'?'active':''}">Word Match (${matchPool.length})</button>
+      </div>
+      <div class="muted" style="font-weight:800;margin:8px 0 4px;">HSK level</div>
+      <div class="lib-filters" id="practiceLevelFilters">
+        <button data-lv="1" class="${activePracticeLevels().includes(1)?'active':''}">HSK 1</button>
+        <button data-lv="2" class="${activePracticeLevels().includes(2)?'active':''}">HSK 2</button>
+        <button data-lv="3" class="${activePracticeLevels().includes(3)?'active':''}">HSK 3</button>
+      </div>
+      <div class="muted" style="font-weight:800;margin:8px 0 4px;">Knowledge level</div>
+      <div class="lib-filters" id="practiceCatFilters">
+        <button data-cat="learning" class="${activePracticeCategories().includes('learning')?'active':''}">Learning</button>
+        <button data-cat="familiar" class="${activePracticeCategories().includes('familiar')?'active':''}">Familiar</button>
+        <button data-cat="mastered" class="${activePracticeCategories().includes('mastered')?'active':''}">Mastered</button>
       </div>
       <div class="muted" style="font-weight:800;margin:8px 0 4px;">Questions per session</div>
       <div class="lib-filters" id="practiceCountFilters">
@@ -1838,6 +1859,38 @@ function renderPractice(app){
     if(!b) return;
     practiceMode = b.dataset.m;
     practiceRecap = null;
+    render();
+  });
+  document.getElementById("practiceLevelFilters").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-lv]");
+    if(!b) return;
+    const lv = Number(b.dataset.lv);
+    let cur = activePracticeLevels().slice();
+    if(cur.includes(lv)){
+      if(cur.length === 1) return; // keep at least one level selected
+      cur = cur.filter(x=>x!==lv);
+    } else {
+      cur = [...cur, lv].sort();
+    }
+    state.practiceLevels = cur;
+    saveState();
+    resetPracticeSessions();
+    render();
+  });
+  document.getElementById("practiceCatFilters").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-cat]");
+    if(!b) return;
+    const cat = b.dataset.cat;
+    let cur = activePracticeCategories().slice();
+    if(cur.includes(cat)){
+      if(cur.length === 1) return; // keep at least one tier selected
+      cur = cur.filter(x=>x!==cat);
+    } else {
+      cur = [...cur, cat];
+    }
+    state.practiceCategories = cur;
+    saveState();
+    resetPracticeSessions();
     render();
   });
   document.getElementById("practiceCountFilters").addEventListener("click", e=>{
@@ -1863,7 +1916,7 @@ function renderPracticeFill(container){
   if(!pool.length){
     container.innerHTML = `
       <div class="card">
-        <p class="muted">No words are started yet — study a few flashcards first, then come back here to practice fill-in-the-blank questions.</p>
+        <p class="muted">No started words match the current HSK level / knowledge level filters. Study a few more flashcards, or broaden the filters above, then come back here to practice fill-in-the-blank questions.</p>
       </div>`;
     return;
   }
@@ -1952,7 +2005,7 @@ let woScore = null;
 function renderPracticeOrder(container){
   const pool = buildSentencePool();
   if(!pool.length){
-    container.innerHTML = `<div class="card"><p class="muted">No words are started yet — study a few flashcards first, then come back here to practice word-order sentences.</p></div>`;
+    container.innerHTML = `<div class="card"><p class="muted">No started words match the current HSK level / knowledge level filters. Study a few more flashcards, or broaden the filters above, then come back here to practice word-order sentences.</p></div>`;
     return;
   }
   const woOrderKeyNow = pool.length + "|" + state.practiceCount;
@@ -2069,7 +2122,7 @@ let tfScore = null;
 function renderPracticeTF(container){
   const pool = buildSentencePool();
   if(pool.length < 2){
-    container.innerHTML = `<div class="card"><p class="muted">Not enough started words are available yet — study a few more flashcards first, then come back here for true/false practice.</p></div>`;
+    container.innerHTML = `<div class="card"><p class="muted">Not enough started words match the current HSK level / knowledge level filters yet. Study a few more flashcards, or broaden the filters above, then come back here for true/false practice.</p></div>`;
     return;
   }
   const tfOrderKeyNow = pool.length + "|" + state.practiceCount;
@@ -2165,7 +2218,7 @@ function renderPracticeTF(container){
 function buildWordMatchPool(){
   return Object.keys(state.cards)
     .map(Number)
-    .filter(idx => isStartedWord(idx) && VOCAB[idx]);
+    .filter(idx => isPracticeEligible(idx) && VOCAB[idx]);
 }
 // Picks 3 wrong English-definition options for a word, preferring other pool
 // words that share the same HSK level (kept non-trivial), falling back to any
@@ -2201,7 +2254,7 @@ function renderPracticeWordMatch(container){
   if(!pool.length){
     container.innerHTML = `
       <div class="card">
-        <p class="muted">No words are started yet — study a few flashcards first, then come back here to test your recall against multiple-choice definitions.</p>
+        <p class="muted">No started words match the current HSK level / knowledge level filters. Study a few more flashcards, or broaden the filters above, then come back here to test your recall against multiple-choice definitions.</p>
       </div>`;
     return;
   }
