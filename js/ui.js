@@ -1148,6 +1148,7 @@ function renderStoryDashboard(app){
         <div class="story-desc">${s.description}</div>
         <div class="muted" style="font-size:12px;">${total} chapter${total===1?"":"s"} &middot; ${done}/${total} read</div>
         <div class="story-progress-bar"><div style="width:${pct}%"></div></div>
+        ${coverageBarHtml(storyCoverage(s))}
       </button>
     `;
   }).join("") || `<p class="muted">No stories at this level yet.</p>`;
@@ -1207,8 +1208,12 @@ function renderStoryChapters(app){
   const rows = document.getElementById("chapterRows");
   rows.innerHTML = story.chapters.map((c,i)=>{
     const read = p.chaptersRead.includes(i);
+    const cov = chapterCoverage(story, i);
     return `<button class="chapter-row ${read?'read':''}" data-ch="${i}">
-      <span>${i+1}. ${c.title}</span>
+      <span class="chapter-row-main">
+        <span>${i+1}. ${c.title}</span>
+        ${cov ? `<span class="chapter-cov">${cov.knownDistinct}/${cov.distinct} words known${cov.ready ? " · ready" : ""}</span>` : ""}
+      </span>
       <span class="badge">${read ? "Read" : "Unread"}</span>
     </button>`;
   }).join("");

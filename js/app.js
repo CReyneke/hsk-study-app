@@ -102,3 +102,10 @@ function formatStudyTime(ms){
 /* ============================ INIT ============================ */
 checkAchievements();
 render();
+// Precompute story known-word coverage in the background, so opening Reading doesn't
+// pay for segmenting 24 stories up front. Deferred to the load event rather than run
+// inline: at this point the page is still mid-parse (sync.js has yet to execute), and a
+// timer scheduled here was observed never running. Safe to skip if the module is absent.
+if(typeof warmStoryIndexes === "function"){
+  window.addEventListener("load", ()=> warmStoryIndexes());
+}
