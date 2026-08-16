@@ -345,6 +345,22 @@
     font-size:10px;font-weight:800;border-radius:999px;padding:3px 9px;white-space:nowrap;
     text-transform:uppercase;letter-spacing:.04em;border:2px solid var(--black);color:var(--black);
   }
+  /* ---- Reverse (EN -> 中文) cards ----
+     Direction has to be obvious at a glance: being asked to produce when you expected to
+     recognise, and only noticing after you've answered, is pure frustration. Hence both
+     a tag and a tinted card edge. */
+  .dir-tag{
+    font-size:10px;font-weight:800;border-radius:999px;padding:3px 9px;white-space:nowrap;
+    letter-spacing:.03em;border:2px solid var(--black);background:var(--purple);color:var(--white);
+  }
+  .card-reverse{border-color:var(--purple-dark);box-shadow:4px 4px 0 var(--purple-dark);}
+  .reverse-prompt{text-align:center;margin:14px 0 6px;}
+  .reverse-en{font-size:26px;font-weight:800;line-height:1.25;color:var(--black);}
+  .reverse-pos{
+    display:inline-block;margin-top:6px;font-size:11px;font-weight:800;text-transform:uppercase;
+    letter-spacing:.04em;color:var(--sub);border:2px solid var(--line);border-radius:999px;padding:2px 10px;
+  }
+  .reverse-ask{font-size:12.5px;color:var(--purple-dark);font-weight:800;margin-top:8px;min-height:16px;}
   .cs-new{background:var(--yellow);}
   .cs-learn{background:var(--yellow-warm);}
   .cs-review{background:var(--green-bright);color:var(--white);}

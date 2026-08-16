@@ -79,6 +79,11 @@ function normalizeState(s){
   // the app dictates tends to feel like an obligation and erode the motivation it's
   // meant to build. Also gives the day a defined end, so finishing feels like finishing.
   if(!Number.isFinite(s.dailyGoal) || s.dailyGoal <= 0) s.dailyGoal = 20;
+  // additive: what fraction of *eligible* flashcards are shown in the reverse direction
+  // (English prompt, recall the Chinese). 0 disables the feature entirely. Defaults to a
+  // quarter -- enough to exercise production regularly without the session stopping
+  // feeling like review.
+  if(!Number.isFinite(s.reverseRate) || s.reverseRate < 0 || s.reverseRate > 1) s.reverseRate = 0.25;
   return s;
 }
 

@@ -670,11 +670,50 @@ let flashDetailPane = null;
 // after this many total reviews the hint above the grade buttons stops rendering.
 const GRADE_HINT_REVIEWS = 15;
 
+/* ---- Reverse (EN -> 中文) cards ----
+   Normal cards show the hanzi and ask what it means, which trains recognition only: you
+   can recognise 时间 long before you can produce it. Mixing the opposite direction into
+   the same session is a "desirable difficulty" -- generating an answer beats being shown
+   one, and varied practice beats blocked practice, even though blocked feels more fluent.
+
+   Two deliberate constraints:
+
+   - Same SRS card, flipped presentation -- NOT a second card per direction. Separate
+     scheduling would be more precise but doubles the daily review load, and the benefit
+     here comes from varying retrieval, not from tracking two schedules.
+   - Only well-established cards flip. Production is a later-acquired skill than
+     recognition, so demanding it for a word still in learning is both discouraging and
+     out of order -- and because failing a reverse card resets the shared schedule, it
+     would cost recognition progress the learner had genuinely earned. */
+const REVERSE_MIN_INTERVAL_DAYS = 4;
+function reverseEligible(idx){
+  const c = getCard(idx);
+  return !!c && c.state === "review" && (c.interval || 0) >= REVERSE_MIN_INTERVAL_DAYS;
+}
+function reverseRate(){
+  const r = state.reverseRate;
+  return Number.isFinite(r) ? r : 0.25;
+}
+// Direction is decided once per queue position and cached, because renderFlashCard()
+// re-runs on every reveal and detail-pane toggle -- rolling the dice per render would
+// flip the card out from under the learner mid-answer.
+let flashReverse = false;
+let flashReverseForPos = -1;
+function resolveFlashDirection(idx){
+  if(flashReverseForPos === flashPos) return flashReverse;
+  flashReverseForPos = flashPos;
+  flashReverse = reverseEligible(idx) && Math.random() < reverseRate();
+  return flashReverse;
+}
+
 function renderFlash(app){
   flashQueue = getDueCardIndices();
   flashPos = 0;
   flashRevealed = false; flashSentPyShown = false; flashDetailPane = null;
   lastAutoplayedIdx = null;
+  // Forget the cached card direction, or position 0 of the new session would inherit
+  // whatever direction position 0 of the previous one happened to get.
+  flashReverseForPos = -1;
   renderFlashCard(app);
 }
 
@@ -705,12 +744,21 @@ function renderFlashLevelPicker(app){
   const wrap = document.createElement("div");
   wrap.className = "card flash-level-picker";
   const active = activeFlashLevels();
+  const rr = reverseRate();
   wrap.innerHTML = `
     <div class="muted" style="font-weight:800;margin-bottom:6px;">Study which HSK set(s)?</div>
     <div class="lib-filters" id="flashLevelFilters">
       <button data-lv="1" class="${active.includes(1)?'active':''}">HSK 1</button>
       <button data-lv="2" class="${active.includes(2)?'active':''}">HSK 2</button>
       <button data-lv="3" class="${active.includes(3)?'active':''}">HSK 3</button>
+    </div>
+    <div class="muted" style="font-weight:800;margin:10px 0 6px;">Recall-the-Chinese cards
+      <span class="muted" style="font-weight:400;">— mixed into words you already know well</span>
+    </div>
+    <div class="lib-filters" id="flashReverseFilters">
+      <button data-rr="0" class="${rr===0?'active':''}">Off</button>
+      <button data-rr="0.25" class="${rr>0 && rr<=0.25?'active':''}">Some</button>
+      <button data-rr="0.4" class="${rr>0.25?'active':''}">Many</button>
     </div>
   `;
   app.appendChild(wrap);
@@ -727,6 +775,16 @@ function renderFlashLevelPicker(app){
     state.flashLevels = cur;
     saveState();
     renderFlash(app);
+  });
+  document.getElementById("flashReverseFilters").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-rr]");
+    if(!b) return;
+    state.reverseRate = Number(b.dataset.rr);
+    saveState();
+    // Re-decide the current card's direction rather than waiting for the next one, so
+    // the setting visibly does something the moment it's changed.
+    flashReverseForPos = -1;
+    renderFlashCard(app);
   });
 }
 
@@ -755,13 +813,13 @@ function renderFlashCard(app){
     if(remaining > 0){
       document.getElementById("moreNew").onclick = ()=>{
         flashQueue = introduceExtraCards(10);
-        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
+        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null; flashReverseForPos = -1;
         renderFlashCard(app);
       };
     }
     document.getElementById("morePractice").onclick = ()=>{
       flashQueue = extraPracticeSample(15);
-      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
+      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null; flashReverseForPos = -1;
       renderFlashCard(app);
     };
     return;
@@ -794,13 +852,13 @@ function renderFlashCard(app){
     if(remaining > 0){
       document.getElementById("moreNew").onclick = ()=>{
         flashQueue = introduceExtraCards(10);
-        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
+        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null; flashReverseForPos = -1;
         renderFlashCard(app);
       };
     }
     document.getElementById("morePractice").onclick = ()=>{
       flashQueue = extraPracticeSample(15);
-      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
+      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null; flashReverseForPos = -1;
       renderFlashCard(app);
     };
     return;
@@ -828,21 +886,36 @@ function renderFlashCard(app){
     review:     {label:"Review",  cls:"cs-review",title:"A scheduled review of a word you know"},
     relearning: {label:"Relearn", cls:"cs-relearn",title:"You got this wrong last time"}
   }[cardState] || {label:cardState, cls:"cs-new", title:""};
+  const isReverse = resolveFlashDirection(idx);
+  // English glosses are often ambiguous ("to love" fits 爱 and 喜欢), so the part of
+  // speech is shown as a disambiguating hint -- it narrows the answer without giving it.
+  const pos = isReverse ? ((extra && extra.pos) || "") : "";
   const card = document.createElement("div");
-  card.className = "card";
+  card.className = "card" + (isReverse ? " card-reverse" : "");
   card.innerHTML = `
     <div class="flash-top-row">
       <span class="card-state-tag ${STATE_TAG.cls}" title="${STATE_TAG.title}">${STATE_TAG.label}</span>
+      ${isReverse ? `<span class="dir-tag" title="Produce the Chinese from the meaning">EN → 中文</span>` : ""}
       <span class="lvl-badge lvl-${lvl}">${LEVEL_LABEL[lvl]}</span>
       <span class="muted center" style="flex:1;">Card ${flashPos+1} of ${flashQueue.length}</span>
       <span class="know-badge" style="border-color:${knowColor};color:${knowColor};" title="How well you know this word">${know}%</span>
     </div>
-    <div class="hanzi">${hanzi}</div>
-    <div class="pinyin" id="pyLine">${flashRevealed ? pinyin : ""}</div>
-    <div class="meaning" id="enLine">${flashRevealed ? eng : ""}</div>
+    ${isReverse ? `
+      <div class="reverse-prompt">
+        <div class="reverse-en">${eng}</div>
+        ${pos ? `<div class="reverse-pos">${pos}</div>` : ""}
+        <div class="reverse-ask">${flashRevealed ? "" : "Recall the Chinese"}</div>
+      </div>
+      <div class="hanzi" style="${flashRevealed ? "" : "visibility:hidden;"}">${hanzi}</div>
+      <div class="pinyin" id="pyLine">${flashRevealed ? pinyin : ""}</div>
+    ` : `
+      <div class="hanzi">${hanzi}</div>
+      <div class="pinyin" id="pyLine">${flashRevealed ? pinyin : ""}</div>
+      <div class="meaning" id="enLine">${flashRevealed ? eng : ""}</div>
+    `}
     <div class="flash-controls">
-      <button class="secondary icon-btn" id="playBtn" title="Play sound again">🔊</button>
-      <button class="secondary" id="revealBtn">${flashRevealed? "Hide" : "Show pinyin + meaning"}</button>
+      ${(!isReverse || flashRevealed) ? `<button class="secondary icon-btn" id="playBtn" title="Play sound again">🔊</button>` : ""}
+      <button class="secondary" id="revealBtn">${flashRevealed ? "Hide" : (isReverse ? "Show the answer" : "Show pinyin + meaning")}</button>
     </div>
     ${flashRevealed ? `
       <div class="flash-detail-tabs">
@@ -863,13 +936,22 @@ function renderFlashCard(app){
     </div>
   `;
   app.appendChild(card);
-  // Autoplay the pronunciation the moment a *new* card appears, but not when
-  // this same card just re-renders because the user toggled the reveal.
-  if(idx !== lastAutoplayedIdx){
+  // Autoplay the pronunciation the moment a *new* card appears, but not when this same
+  // card just re-renders because the user toggled the reveal.
+  //
+  // On a reverse card the audio IS the answer, so it must stay silent until revealed --
+  // then it plays on reveal instead, which is exactly when hearing it is useful.
+  if(isReverse){
+    if(flashRevealed && lastAutoplayedIdx !== idx){
+      lastAutoplayedIdx = idx;
+      speak(hanzi);
+    }
+  } else if(idx !== lastAutoplayedIdx){
     lastAutoplayedIdx = idx;
     speak(hanzi);
   }
-  document.getElementById("playBtn").onclick=()=>speak(hanzi);
+  const playBtn = document.getElementById("playBtn");
+  if(playBtn) playBtn.onclick = ()=> speak(hanzi);
   document.getElementById("revealBtn").onclick=()=>{ flashRevealed = !flashRevealed; renderFlashCard(app); };
   // Flip-back detail panes: example sentences, stroke order, and character breakdown.
   // Only ONE pane is open at a time (accordion, all closed by default) so a revealed
