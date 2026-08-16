@@ -74,8 +74,21 @@ function normalizeState(s){
   // requires isStartedWord() (a real example sentence you've seen before), so a word
   // still in "new" can never appear regardless of this filter.
   if(!Array.isArray(s.practiceCategories) || s.practiceCategories.length === 0) s.practiceCategories = ["learning","familiar","mastered"];
+  // additive: how many graded reviews the learner is aiming for per day. Deliberately
+  // user-chosen rather than imposed -- a self-set target supports autonomy, whereas one
+  // the app dictates tends to feel like an obligation and erode the motivation it's
+  // meant to build. Also gives the day a defined end, so finishing feels like finishing.
+  if(!Number.isFinite(s.dailyGoal) || s.dailyGoal <= 0) s.dailyGoal = 20;
   return s;
 }
+
+// Graded reviews completed today, and whether that meets the learner's chosen target.
+function reviewsToday(){
+  const rl = (state.reviewLog || {})[todayStr()];
+  return (rl && rl.n) || 0;
+}
+function dailyGoalTarget(){ return state.dailyGoal || 20; }
+function dailyGoalMet(){ return reviewsToday() >= dailyGoalTarget(); }
 
 function loadState(){
   let s = null;
@@ -562,88 +575,130 @@ function bumpInterval(newInterval, prevInterval){
   if(ni <= prevInterval) ni = Math.min(MAX_INTERVAL_DAYS, prevInterval + 1);
   return ni;
 }
+/* PURE scheduler: given a card's current scheduling fields and a grade, returns what its
+   new fields would be, without mutating anything or reading the clock.
+
+   Extracted from gradeCard() so that grading and the interval PREVIEW shown on the
+   Again/Hard/Good/Easy buttons are computed by the same code. Duplicating this logic for
+   display would guarantee the two eventually disagree, and a preview that lies about the
+   schedule is worse than no preview -- it miscalibrates exactly the judgement the SRS
+   depends on. The scheduling rules themselves are unchanged; see the SRS block comment
+   above for what each grade does and why.
+
+   Returns the resulting {state, step, ef, interval} plus `dueInMs` (relative to now) and
+   the counter deltas the caller should apply. */
+const MIN_MS = 60 * 1000;
+function scheduleAfterGrade(card, grade){
+  let cState = (card.state === "new" || card.state === undefined) ? "learning" : card.state;
+  let step = card.step || 0;
+  let ef = (card.ef === undefined) ? 2.5 : card.ef;
+  let interval = card.interval || 0;
+  let dueInMs = 0;
+  let correctDelta = 0, wrongDelta = 0, repsDelta = 0, lapsesDelta = 0;
+
+  if(cState === "learning" || cState === "relearning"){
+    if(grade === 0){
+      // Again: back to the first learning step. Ease is untouched for learning/relearning cards.
+      step = 0;
+      dueInMs = LEARNING_STEPS_MIN[0] * MIN_MS;
+      wrongDelta = 1;
+      if(cState === "relearning") lapsesDelta = 1;
+    } else if(grade === 1){
+      // Hard: repeats the current step, timed at the midpoint between this step's delay
+      // and the next one's (Anki describes Hard as "the average of Again and Good").
+      const curMin = LEARNING_STEPS_MIN[step] ?? LEARNING_STEPS_MIN[LEARNING_STEPS_MIN.length-1];
+      const nextMin = LEARNING_STEPS_MIN[step+1];
+      const mins = nextMin !== undefined ? Math.round((curMin+nextMin)/2) : curMin;
+      dueInMs = mins * MIN_MS;
+      correctDelta = 1;
+    } else if(grade === 2){
+      // Good: advance to the next step, or graduate if this was the final step.
+      const next = step + 1;
+      if(next < LEARNING_STEPS_MIN.length){
+        step = next;
+        dueInMs = LEARNING_STEPS_MIN[next] * MIN_MS;
+      } else {
+        cState = "review"; step = 0;
+        interval = GRADUATING_INTERVAL_DAYS;
+        dueInMs = interval * DUE_MS;
+      }
+      correctDelta = 1; repsDelta = 1;
+    } else {
+      // Easy: graduate immediately with the larger "easy interval".
+      cState = "review"; step = 0;
+      interval = EASY_INTERVAL_DAYS;
+      dueInMs = interval * DUE_MS;
+      correctDelta = 1; repsDelta = 1;
+    }
+  } else {
+    // state === "review"
+    const prevInterval = interval;
+    if(grade === 0){
+      // Again: ease -0.20 (floored 1.3), drops into relearning, interval reset.
+      lapsesDelta = 1;
+      ef = Math.max(1.3, ef - 0.20);
+      cState = "relearning"; step = 0;
+      dueInMs = LEARNING_STEPS_MIN[0] * MIN_MS;
+      wrongDelta = 1;
+      interval = 0;
+    } else if(grade === 1){
+      // Hard: ease -0.15 (floored 1.3), interval *= 1.2.
+      ef = Math.max(1.3, ef - 0.15);
+      interval = bumpInterval(prevInterval * 1.2, prevInterval);
+      dueInMs = interval * DUE_MS;
+      correctDelta = 1; repsDelta = 1;
+    } else if(grade === 2){
+      // Good: interval *= ease; ease unchanged.
+      interval = bumpInterval(prevInterval * ef, prevInterval);
+      dueInMs = interval * DUE_MS;
+      correctDelta = 1; repsDelta = 1;
+    } else {
+      // Easy: interval *= ease * 1.3 (easy bonus), THEN ease += 0.15 -- the interval
+      // deliberately uses the pre-bonus ease, matching the original implementation.
+      interval = bumpInterval(prevInterval * ef * 1.3, prevInterval);
+      ef = ef + 0.15;
+      dueInMs = interval * DUE_MS;
+      correctDelta = 1; repsDelta = 1;
+    }
+  }
+  return {state:cState, step, ef, interval, dueInMs, correctDelta, wrongDelta, repsDelta, lapsesDelta};
+}
+
+// Compact human interval, e.g. "10m" / "1d" / "3mo". Used on the grade buttons so the
+// learner can see what each answer costs them before committing to it.
+function formatInterval(ms){
+  const mins = ms / MIN_MS;
+  if(mins < 60) return Math.max(1, Math.round(mins)) + "m";
+  const hours = mins / 60;
+  if(hours < 24) return Math.round(hours) + "h";
+  const days = hours / 24;
+  if(days < 31) return Math.round(days) + "d";
+  const months = days / 30.44;
+  if(months < 12) return Math.round(months) + "mo";
+  const years = days / 365;
+  return (years < 10 ? years.toFixed(1) : Math.round(years)) + "y";
+}
+// What the learner would be scheduled for if they pressed `grade` on this card now.
+function previewInterval(idx, grade){
+  const c = getCard(idx) || {state:"new", step:0, ef:2.5, interval:0};
+  return formatInterval(scheduleAfterGrade(c, grade).dueInMs);
+}
+
 function gradeCard(idx, grade){
   const c = ensureCard(idx);
   const now = Date.now();
   const originalState = c.state;
-  if(c.state === "new") c.state = "learning";
+  const r = scheduleAfterGrade(c, grade);
+  c.state = r.state;
+  c.step = r.step;
+  c.ef = r.ef;
+  c.interval = r.interval;
+  c.due = now + r.dueInMs;
+  if(r.correctDelta) c.correct = (c.correct||0) + r.correctDelta;
+  if(r.wrongDelta)   c.wrong   = (c.wrong||0)   + r.wrongDelta;
+  if(r.repsDelta)    c.reps    = (c.reps||0)    + r.repsDelta;
+  if(r.lapsesDelta)  c.lapses  = (c.lapses||0)  + r.lapsesDelta;
 
-  if(c.state === "learning" || c.state === "relearning"){
-    if(grade === 0){
-      // Again: back to the first learning step. Ease is untouched for learning/relearning cards.
-      c.step = 0;
-      c.due = now + LEARNING_STEPS_MIN[0]*60*1000;
-      c.wrong = (c.wrong||0) + 1;
-      if(c.state === "relearning") c.lapses = (c.lapses||0) + 1;
-    } else if(grade === 1){
-      // Hard: repeats the current step. Approximated as the midpoint between the
-      // current step's delay and the next step's delay (Anki describes Hard's timing
-      // as "the average of Again and Good"); ease is untouched.
-      const curMin = LEARNING_STEPS_MIN[c.step] ?? LEARNING_STEPS_MIN[LEARNING_STEPS_MIN.length-1];
-      const nextMin = LEARNING_STEPS_MIN[c.step+1];
-      const mins = nextMin !== undefined ? Math.round((curMin+nextMin)/2) : curMin;
-      c.due = now + mins*60*1000;
-      c.correct = (c.correct||0) + 1;
-    } else if(grade === 2){
-      // Good: advance to the next step, or graduate if this was the final step.
-      const next = c.step + 1;
-      if(next < LEARNING_STEPS_MIN.length){
-        c.step = next;
-        c.due = now + LEARNING_STEPS_MIN[next]*60*1000;
-      } else {
-        c.state = "review";
-        c.step = 0;
-        c.interval = GRADUATING_INTERVAL_DAYS;
-        c.due = now + c.interval*DUE_MS;
-      }
-      c.correct = (c.correct||0) + 1;
-      c.reps = (c.reps||0) + 1;
-    } else {
-      // Easy: graduate immediately, skipping any remaining steps, with the larger
-      // "easy interval" instead of the standard graduating interval.
-      c.state = "review";
-      c.step = 0;
-      c.interval = EASY_INTERVAL_DAYS;
-      c.due = now + c.interval*DUE_MS;
-      c.correct = (c.correct||0) + 1;
-      c.reps = (c.reps||0) + 1;
-    }
-  } else {
-    // state === "review"
-    const prevInterval = c.interval;
-    if(grade === 0){
-      // Again: ease -0.20 (floored 1.3), drops into relearning. The "new interval %"
-      // is 0% of the previous interval — it re-graduates via the learning-step
-      // graduate/easy-graduate logic above, same as a first-time "new" graduation.
-      c.lapses = (c.lapses||0) + 1;
-      c.ef = Math.max(1.3, c.ef - 0.20);
-      c.state = "relearning";
-      c.step = 0;
-      c.due = now + LEARNING_STEPS_MIN[0]*60*1000;
-      c.wrong = (c.wrong||0) + 1;
-      c.interval = 0;
-    } else if(grade === 1){
-      // Hard: ease -0.15 (floored 1.3), interval *= 1.2.
-      c.ef = Math.max(1.3, c.ef - 0.15);
-      c.interval = bumpInterval(prevInterval * 1.2, prevInterval);
-      c.due = now + c.interval*DUE_MS;
-      c.correct = (c.correct||0) + 1;
-      c.reps = (c.reps||0) + 1;
-    } else if(grade === 2){
-      // Good: interval *= ease; ease unchanged.
-      c.interval = bumpInterval(prevInterval * c.ef, prevInterval);
-      c.due = now + c.interval*DUE_MS;
-      c.correct = (c.correct||0) + 1;
-      c.reps = (c.reps||0) + 1;
-    } else {
-      // Easy: interval *= ease * 1.3 (easy bonus); ease += 0.15.
-      c.interval = bumpInterval(prevInterval * c.ef * 1.3, prevInterval);
-      c.ef = c.ef + 0.15;
-      c.due = now + c.interval*DUE_MS;
-      c.correct = (c.correct||0) + 1;
-      c.reps = (c.reps||0) + 1;
-    }
-  }
   state.totalReviews = (state.totalReviews||0) + 1;
   // A graded review is what counts as "studied today" for the streak -- this is the one
   // path every flashcard AND practice mode funnels through, so hooking it here covers

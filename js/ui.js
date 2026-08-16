@@ -556,8 +556,44 @@ function renderToday(app){
   const pct = Math.round((lv.into / lv.need) * 100);
   const phrase = DAILY_PHRASES[dayOfYear() % DAILY_PHRASES.length];
 
+  const doneToday = reviewsToday();
+  const goal = dailyGoalTarget();
+  const met = dailyGoalMet();
+
   const wrap = document.createElement("div");
+  // Order matters here. The study action leads, because every scroll between opening the
+  // app and starting a review is an opportunity to not bother -- and the statistics below
+  // are a *reward for having studied*, which makes putting them first backwards. History
+  // and gamification follow underneath, where they cost nothing to skip.
   wrap.innerHTML = `
+    <div class="card today-hero ${met ? "goal-met" : ""}">
+      <div class="today-hero-main">
+        ${buildGoalRing(doneToday, goal)}
+        <div class="today-hero-text">
+          <h3 style="margin:0 0 2px;">${met ? "Done for today ✓" : due.length ? `${due.length} card${due.length===1?"":"s"} to review` : "Nothing due right now"}</h3>
+          <div class="muted">${met
+            ? `${doneToday} review${doneToday===1?"":"s"} done — anything more today is a bonus.`
+            : `${doneToday} of ${goal} reviews done today${due.length ? "" : " · new cards unlock daily"}`}</div>
+          <div class="today-streak">🔥 ${state.streak||0}-day streak</div>
+        </div>
+      </div>
+      <div class="flash-controls" style="margin-top:12px;">
+        <button class="${met ? "secondary" : "primary"}" id="goFlash">${met ? "Keep going" : due.length ? `Start reviewing (${due.length})` : "Study anyway"}</button>
+        <button class="secondary" id="goReading">Today's reading: "${reading.title}"</button>
+      </div>
+      <div class="goal-picker">
+        <span class="muted">Daily goal</span>
+        <div class="lib-filters" id="goalPicker">
+          ${[10,20,30,50].map(n=>`<button data-goal="${n}" class="${goal===n?'active':''}">${n}</button>`).join("")}
+        </div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="num">${due.length}</div><div class="lbl">cards due now</div></div>
+      <div class="stat"><div class="num">${introducedTodayCount}</div><div class="lbl">new words today</div></div>
+      <div class="stat"><div class="num">${state.streak||0}</div><div class="lbl">day streak</div></div>
+      <div class="stat"><div class="num">${Object.keys(state.cards).length}</div><div class="lbl">/ ${VOCAB.length} words started</div></div>
+    </div>
     <div class="card">
       <div class="char-sheet">
         <div class="avatar" style="width:96px;height:96px;">${mascotBounceImg(t.mascot, t.title)}</div>
@@ -568,12 +604,6 @@ function renderToday(app){
         </div>
         <button class="secondary" id="goProgress">View character sheet</button>
       </div>
-    </div>
-    <div class="stat-row">
-      <div class="stat"><div class="num">${due.length}</div><div class="lbl">cards due now</div></div>
-      <div class="stat"><div class="num">${introducedTodayCount}</div><div class="lbl">new words today</div></div>
-      <div class="stat"><div class="num">${state.streak||1}</div><div class="lbl">day streak</div></div>
-      <div class="stat"><div class="num">${Object.keys(state.cards).length}</div><div class="lbl">/ ${VOCAB.length} words started</div></div>
     </div>
     <div class="daily-phrase">
       <div class="dp-label">Phrase of the day</div>
@@ -590,20 +620,36 @@ function renderToday(app){
       ${buildTimeStudiedWidget()}
       ${buildTodayActivityWidget()}
     </div>
-    <div class="card">
-      <h3 style="margin-top:0;">Today's plan</h3>
-      <p class="muted">A fresh mix is generated every day: new flashcards, everything due for review, and one reading passage — rotated by the date so you don't see the same thing twice in a row.</p>
-      <div class="flash-controls">
-        <button class="primary" id="goFlash">Start flashcards (${due.length} due)</button>
-        <button class="secondary" id="goReading">Today's reading: "${reading.title}"</button>
-      </div>
-    </div>
   `;
   app.appendChild(wrap);
   document.getElementById("goFlash").onclick=()=>{currentTab="flash"; setActiveTab("flash"); render();};
   document.getElementById("goReading").onclick=()=>{currentTab="reading"; setActiveTab("reading"); render();};
   document.getElementById("goProgress").onclick=()=>{currentTab="progress"; setActiveTab("progress"); render();};
   document.getElementById("dpPlay").onclick=()=>speak(phrase[0]);
+  document.getElementById("goalPicker").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-goal]");
+    if(!b) return;
+    state.dailyGoal = Number(b.dataset.goal);
+    saveState();
+    render();
+  });
+}
+
+// Progress ring for the daily goal. Inline SVG so it needs no library and inherits the
+// app's flat palette; switches to green the moment the target is met.
+function buildGoalRing(done, goal){
+  const pct = Math.max(0, Math.min(1, goal ? done/goal : 0));
+  const r = 30, c = 2*Math.PI*r;
+  const met = done >= goal;
+  return `
+    <svg class="goal-ring" viewBox="0 0 72 72" role="img" aria-label="${done} of ${goal} reviews done today">
+      <circle cx="36" cy="36" r="${r}" fill="none" stroke="var(--line)" stroke-width="8"/>
+      <circle cx="36" cy="36" r="${r}" fill="none" stroke="${met ? "var(--green-bright)" : "var(--blue)"}"
+              stroke-width="8" stroke-linecap="round"
+              stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pct)}"
+              transform="rotate(-90 36 36)"/>
+      <text x="36" y="41" text-anchor="middle" class="goal-ring-text">${met ? "✓" : done}</text>
+    </svg>`;
 }
 function setActiveTab(tab){
   [...tabsEl.children].forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
@@ -620,6 +666,9 @@ let flashSentPyShown = false;
 // add height until asked for -- that's what keeps a card's full review fitting on one
 // mobile screen without scrolling, above the fixed-to-bottom grade buttons.
 let flashDetailPane = null;
+// The Again/Hard/Good/Easy scale needs explaining once and then gets out of the way --
+// after this many total reviews the hint above the grade buttons stops rendering.
+const GRADE_HINT_REVIEWS = 15;
 
 function renderFlash(app){
   flashQueue = getDueCardIndices();
@@ -721,12 +770,22 @@ function renderFlashCard(app){
     const remaining = VOCAB.length - Object.keys(state.cards).length;
     const done = document.createElement("div");
     done.className = "card center";
+    // A session needs a real ending. When the day's self-set target is met, say so and
+    // demote the keep-going options -- an endless "do more" loop with no completion
+    // state produces guilt rather than satisfaction, and stopping should read as success.
+    const metGoal = dailyGoalMet();
     done.innerHTML = `
       ${mascotBounceImg("happy-pixel-celebrating.png","", "empty-mascot")}
-      <p>Nice — you cleared this set of ${flashQueue.length} card(s).</p>
+      ${metGoal ? `
+        <h3 style="margin:4px 0 2px;">Done for today ✓</h3>
+        <p class="muted">${reviewsToday()} reviews — you've hit your goal of ${dailyGoalTarget()}. Anything more is a bonus.</p>
+      ` : `
+        <p>Nice — you cleared this set of ${flashQueue.length} card(s).</p>
+        <p class="muted">${reviewsToday()} of ${dailyGoalTarget()} reviews done today.</p>
+      `}
       <div class="flash-controls">
         <button class="secondary" id="restart">Review due cards again</button>
-        ${remaining > 0 ? `<button class="primary" id="moreNew">Learn 10 more new words now</button>` : ""}
+        ${remaining > 0 ? `<button class="${metGoal ? "secondary" : "primary"}" id="moreNew">Learn 10 more new words now</button>` : ""}
         <button class="secondary" id="morePractice">Practice random words for extra reps</button>
       </div>
     `;
@@ -759,10 +818,21 @@ function renderFlashCard(app){
   // don't render in that case rather than opening an empty pane.
   const hasStrokeChars = charsWithStrokes(hanzi).length > 0;
   const hasStructure = Array.from(hanzi).some(c => charInfo(c));
+  // Why this card is in front of you. Knowing you previously failed a word changes how
+  // you attempt to recall it, and learners judge their own knowledge poorly without such
+  // cues -- so unlike the level/know badges, this one stays visible on mobile.
+  const cardState = (getCard(idx) || {}).state || "new";
+  const STATE_TAG = {
+    new:        {label:"New",     cls:"cs-new",   title:"You haven't studied this word before"},
+    learning:   {label:"Learning",cls:"cs-learn", title:"You're still working this one in"},
+    review:     {label:"Review",  cls:"cs-review",title:"A scheduled review of a word you know"},
+    relearning: {label:"Relearn", cls:"cs-relearn",title:"You got this wrong last time"}
+  }[cardState] || {label:cardState, cls:"cs-new", title:""};
   const card = document.createElement("div");
   card.className = "card";
   card.innerHTML = `
     <div class="flash-top-row">
+      <span class="card-state-tag ${STATE_TAG.cls}" title="${STATE_TAG.title}">${STATE_TAG.label}</span>
       <span class="lvl-badge lvl-${lvl}">${LEVEL_LABEL[lvl]}</span>
       <span class="muted center" style="flex:1;">Card ${flashPos+1} of ${flashQueue.length}</span>
       <span class="know-badge" style="border-color:${knowColor};color:${knowColor};" title="How well you know this word">${know}%</span>
@@ -781,11 +851,15 @@ function renderFlashCard(app){
         ${hasStructure ? `<button class="flash-detail-toggle ${flashDetailPane==='struct'?'open':''}" data-pane="struct">${flashDetailPane==='struct' ? "▴" : "▾"} Breakdown</button>` : ""}
       </div>` : ""}
     <div id="flashDetail"></div>
-    <div class="grade-btns" id="gradeBtns" style="visibility:${flashRevealed?'visible':'hidden'}">
-      <button class="g-again" data-g="0">Again</button>
-      <button class="g-hard" data-g="1">Hard</button>
-      <button class="g-good" data-g="2">Good</button>
-      <button class="g-easy" data-g="3">Easy</button>
+    <div class="grade-bar" id="gradeBtns" style="visibility:${flashRevealed?'visible':'hidden'}">
+      ${state.totalReviews < GRADE_HINT_REVIEWS ? `
+        <div class="grade-hint">Did you recall it? <b>No</b> → Again · <b>barely</b> → Hard · <b>yes</b> → Good · <b>instantly</b> → Easy</div>` : ""}
+      <div class="grade-btns">
+        <button class="g-again" data-g="0" aria-label="Again — you did not recall it">Again<span class="g-when">${previewInterval(idx,0)}</span></button>
+        <button class="g-hard"  data-g="1" aria-label="Hard — you recalled it with difficulty">Hard<span class="g-when">${previewInterval(idx,1)}</span></button>
+        <button class="g-good"  data-g="2" aria-label="Good — you recalled it">Good<span class="g-when">${previewInterval(idx,2)}</span></button>
+        <button class="g-easy"  data-g="3" aria-label="Easy — you recalled it instantly">Easy<span class="g-when">${previewInterval(idx,3)}</span></button>
+      </div>
     </div>
   `;
   app.appendChild(card);

@@ -123,9 +123,15 @@
 
   /* Per-tab bold color context: rotates one flat color per section */
   .app-shell:has(nav button.active[data-tab="today"]) main{background:var(--white);}
-  /* Extra bottom padding so the fixed .grade-btns bar never covers the last bit of
-     card content -- only needed on the flash tab, where that bar exists. */
-  .app-shell:has(nav button.active[data-tab="flash"]) main{background:#eaf3ff;padding-bottom:86px;}
+  /* Extra bottom padding so the fixed grade bar never covers the last bit of card
+     content -- only needed on the flash tab, where that bar exists. The taller reserve
+     applies while the first-run grade hint is present. */
+  .app-shell:has(nav button.active[data-tab="flash"]) main{background:#eaf3ff;padding-bottom:104px;}
+  /* Must repeat the tab selector, not just add :has(.grade-hint) -- a bare
+     `.app-shell:has(.grade-hint) main` is LESS specific than the rule above (:has()
+     takes the specificity of its argument) and silently loses, leaving the taller bar
+     overlapping content. */
+  .app-shell:has(nav button.active[data-tab="flash"]):has(.grade-hint) main{padding-bottom:140px;}
   .app-shell:has(nav button.active[data-tab="library"]) main{background:#eaf3ff;}
   .app-shell:has(nav button.active[data-tab="reading"]) main{background:#fdeaea;}
   .app-shell:has(nav button.active[data-tab="listening"]) main{background:#f5eafd;}
@@ -238,13 +244,25 @@
      gets. Centered to the same max-width as .app-shell on wide screens, full-bleed on
      mobile. Space for it is reserved via the .app-shell:has(...) main padding-bottom
      rule below the nav-color-context block. */
-  .grade-btns{
-    position:fixed;left:0;right:0;bottom:0;margin:0 auto;width:min(96vw,1600px);
-    display:flex;gap:8px;justify-content:center;flex-wrap:nowrap;z-index:120;
+  .grade-bar{
+    position:fixed;left:0;right:0;bottom:0;margin:0 auto;width:min(96vw,1600px);z-index:120;
     background:var(--white);border-top:3px solid var(--black);box-shadow:0 -4px 0 var(--black);
-    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    padding:8px 14px calc(10px + env(safe-area-inset-bottom));
   }
-  .grade-btns button{flex:1;min-width:0;font-family:var(--sans);font-size:13px;font-weight:800;border:2px solid var(--black);border-radius:999px;padding:11px 8px;cursor:pointer;color:var(--black);transition:transform .1s;text-transform:uppercase;}
+  /* Shown only for a learner's first handful of reviews -- the Again/Hard/Good/Easy scale
+     is genuinely ambiguous at first ("Hard" gets misread as "this word is hard" rather
+     than "I barely recalled it"), and a mis-set grade quietly corrupts the schedule. */
+  .grade-hint{font-size:11px;color:var(--sub);text-align:center;margin-bottom:6px;line-height:1.35;}
+  .grade-btns{display:flex;gap:8px;justify-content:center;flex-wrap:nowrap;}
+  .grade-btns button{
+    flex:1;min-width:0;font-family:var(--sans);font-size:13px;font-weight:800;
+    border:2px solid var(--black);border-radius:999px;padding:9px 6px;cursor:pointer;
+    color:var(--black);transition:transform .1s;text-transform:uppercase;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15;
+  }
+  /* The interval each answer would schedule. Anki surfaces this for the same reason:
+     seeing "10m" vs "4d" is what calibrates the judgement being asked for. */
+  .g-when{font-size:10px;font-weight:700;opacity:.8;text-transform:none;letter-spacing:0;}
   .grade-btns button:active{transform:scale(.96);}
   .flash-controls .icon-btn{flex:0 0 auto;width:44px;font-size:18px;padding:8px 0;}
   /* Collapsed-by-default "Sentences ▾" dropdown toggle (mirrors the reference minimal
@@ -321,6 +339,16 @@
   .cat-familiar{background:var(--blue);color:var(--white);}
   .cat-mastered{background:var(--green-bright);color:var(--white);}
   .know-badge{font-size:11px;font-weight:800;border:2px solid;border-radius:999px;padding:3px 10px;text-transform:uppercase;background:var(--white);white-space:nowrap;}
+  /* Why this card is being shown. Kept visible on mobile (unlike the level/know badges)
+     because "you got this wrong last time" changes how you attempt the recall. */
+  .card-state-tag{
+    font-size:10px;font-weight:800;border-radius:999px;padding:3px 9px;white-space:nowrap;
+    text-transform:uppercase;letter-spacing:.04em;border:2px solid var(--black);color:var(--black);
+  }
+  .cs-new{background:var(--yellow);}
+  .cs-learn{background:var(--yellow-warm);}
+  .cs-review{background:var(--green-bright);color:var(--white);}
+  .cs-relearn{background:var(--red);color:var(--white);}
   .lvl-badge{font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;text-transform:uppercase;letter-spacing:.02em;font-weight:800;border:2px solid var(--black);}
   .lvl-1{background:var(--green-bright);color:var(--white);}
   .lvl-2{background:var(--blue);color:var(--white);}
@@ -411,6 +439,19 @@
   .etym-semantic{background:var(--red);}
   .etym-phonetic{background:var(--blue);}
   .etym-plus{font-weight:800;color:var(--sub);}
+
+  /* ---- Today hero: the one card that has to be reachable without scrolling ---- */
+  .today-hero{border-width:4px;}
+  .today-hero.goal-met{background:var(--forest-tint);}
+  .today-hero-main{display:flex;align-items:center;gap:14px;}
+  .today-hero-text{min-width:0;}
+  .today-hero h3{font-size:20px;}
+  .today-streak{font-size:12.5px;font-weight:800;color:var(--sub);margin-top:4px;}
+  .goal-ring{width:72px;height:72px;flex-shrink:0;}
+  .goal-ring-text{font-family:var(--display);font-size:22px;font-weight:800;fill:var(--black);}
+  .goal-picker{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
+  .goal-picker .lib-filters{margin:0;}
+  .goal-picker .lib-filters button{padding:4px 12px;font-size:12px;}
 
   /* Character sheet */
   .char-sheet{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
