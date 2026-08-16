@@ -1,7 +1,7 @@
 /* Stale-while-revalidate for the static app shell, so it opens (mostly) offline once
    visited. GitHub API sync calls are a different origin and are explicitly skipped
    below -- this worker must never intercept or cache those. */
-const CACHE_NAME = "hsk3-study-v9";
+const CACHE_NAME = "hsk3-study-v10";
 const CORE_ASSETS = [
   "./",
   "./index.html",

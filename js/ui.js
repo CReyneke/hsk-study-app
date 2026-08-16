@@ -551,7 +551,7 @@ function renderToday(app){
   const due = getDueCardIndices();
   const introducedTodayCount = Object.values(state.cards).filter(c=>c.introducedOn===todayStr()).length;
   const reading = READINGS[dayOfYear() % READINGS.length];
-  const lv = levelFromXp(state.xp);
+  const lv = currentLevel();
   const t = titleForLevel(lv.level);
   const pct = Math.round((lv.into / lv.need) * 100);
   const phrase = DAILY_PHRASES[dayOfYear() % DAILY_PHRASES.length];
@@ -600,7 +600,7 @@ function renderToday(app){
         <div class="char-info">
           <div class="char-title">${t.title} · Level ${lv.level}</div>
           <div class="xp-bar"><div style="width:${pct}%"></div></div>
-          <div class="xp-label"><img src="ui-assets/icon-star.png" class="icon-inline" alt="">${lv.into} / ${lv.need} XP to next level</div>
+          <div class="xp-label"><img src="ui-assets/icon-star.png" class="icon-inline" alt="">${lv.maxed ? `${lv.mastered} words mastered — ladder complete` : `${lv.into} / ${lv.need} words mastered to next level`}</div>
         </div>
         <button class="secondary" id="goProgress">View character sheet</button>
       </div>
@@ -2814,7 +2814,7 @@ function renderGrammar(app){
 
 /* ---- Progress ---- */
 function renderProgress(app){
-  const lv = levelFromXp(state.xp);
+  const lv = currentLevel();
   const t = titleForLevel(lv.level);
   const pct = Math.round((lv.into / lv.need) * 100);
   const d = computeDerivedStats();
@@ -2832,7 +2832,8 @@ function renderProgress(app){
           <div class="char-title">${t.title}</div>
           <div class="char-level">Level ${lv.level}</div>
           <div class="xp-bar"><div style="width:${pct}%"></div></div>
-          <div class="xp-label"><img src="ui-assets/icon-star.png" class="icon-inline" alt="">${lv.into} / ${lv.need} XP to next level (${state.xp} total XP)</div>
+          <div class="xp-label"><img src="ui-assets/icon-star.png" class="icon-inline" alt="">${lv.maxed ? `${lv.mastered} words mastered — ladder complete` : `${lv.into} / ${lv.need} words mastered to next level`}</div>
+          <div class="xp-label muted" style="opacity:.8;">${lv.mastered} mastered overall · ${state.xp} XP earned</div>
         </div>
       </div>
       <div class="rpg-stats">

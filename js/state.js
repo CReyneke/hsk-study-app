@@ -177,30 +177,53 @@ function mascotAltImg(file, alt, cls){
 function titleForLevel(level){
   return TITLES.find(t=>level>=t.min && level<=t.max) || TITLES[TITLES.length-1];
 }
-// XP required to go from `level` to `level+1`
-function xpNeededForLevel(level){ return Math.round(80 + (level-1)*30); }
-function levelFromXp(xp){
-  let level = 1, remaining = xp, need = xpNeededForLevel(1);
-  while(remaining >= need){
-    remaining -= need;
-    level++;
-    need = xpNeededForLevel(level);
-  }
-  return { level, into: remaining, need };
+/* ---- The level ladder ----
+   Level and title are derived from WORDS MASTERED, not from accumulated XP.
+
+   XP measured how many buttons you pressed, which meant "Level 30 · Mandarin Sage" said
+   nothing about anyone's Chinese -- two learners on the same level could have completely
+   different ability. Mastery is a claim that survives contact with reality: a word only
+   counts once it's held in the long-term queue at a three-week-plus interval, which no
+   amount of clicking can shortcut.
+
+   The curve is deliberately fast at the start and long at the end: level 2 at 3 words,
+   level 10 at 79, level 25 at 343, and level 50 -- Legendary Scholar -- at all 1000,
+   i.e. the whole of HSK 1-3 held in durable memory. XP still accumulates and is still
+   shown, but as a record of effort rather than as an identity. */
+const MAX_TITLE_LEVEL = 50;
+const MASTERY_CURVE_EXP = 1.5;
+
+// Cumulative mastered words needed to REACH `level`.
+function masteredForLevel(level){
+  if(level <= 1) return 0;
+  const L = Math.min(level, MAX_TITLE_LEVEL);
+  return Math.round(VOCAB.length * Math.pow((L - 1) / (MAX_TITLE_LEVEL - 1), MASTERY_CURVE_EXP));
 }
+function masteredCount(){
+  return Object.keys(state.cards).filter(k => wordCategory(Number(k)) === "mastered").length;
+}
+// Same {level, into, need} shape the XP version returned, so display code reads the same.
+function levelFromMastery(n){
+  let level = 1;
+  while(level < MAX_TITLE_LEVEL && n >= masteredForLevel(level + 1)) level++;
+  const base = masteredForLevel(level);
+  const next = level < MAX_TITLE_LEVEL ? masteredForLevel(level + 1) : base;
+  return { level, into: n - base, need: Math.max(1, next - base), mastered: n, maxed: level >= MAX_TITLE_LEVEL };
+}
+function currentLevel(){ return levelFromMastery(masteredCount()); }
 function awardXP(n){
-  const before = levelFromXp(state.xp).level;
   state.xp += n;
   // additive/defensive: tally today's XP into the rolling log for the Today-tab chart.
   // Does not affect scheduling/XP-earning logic itself, just a display-side record.
   const t = todayStr();
   state.xpLog = state.xpLog || {};
   state.xpLog[t] = (state.xpLog[t] || 0) + n;
-  const after = levelFromXp(state.xp);
   saveState();
-  if(after.level > before) showLevelUpToast(after.level);
+  // Level-up is no longer detected here: the ladder is driven by words mastered, which
+  // changes when a card's interval crosses the mastery threshold, not when XP is paid.
+  // gradeCard() watches for that instead.
   checkAchievements();
-  return after;
+  return currentLevel();
 }
 function showLevelUpToast(level){
   const t = titleForLevel(level);
@@ -311,7 +334,7 @@ function computeDerivedStats(){
     picCorrect: state.picCorrect||0,
     orderCorrect: state.orderCorrect||0,
     tfCorrect: state.tfCorrect||0,
-    level: levelFromXp(state.xp).level
+    level: levelFromMastery(mature).level
   };
 }
 function checkAchievements(){
@@ -761,6 +784,9 @@ function previewInterval(idx, grade){
 function gradeCard(idx, grade){
   const c = ensureCard(idx);
   const now = Date.now();
+  // Captured before the schedule changes, so a level-up caused by this card reaching the
+  // mastery threshold can be detected at the end.
+  const levelBefore = currentLevel().level;
   const r = scheduleAfterGrade(c, grade);
   c.state = r.state;
   c.step = r.step;
@@ -799,6 +825,11 @@ function gradeCard(idx, grade){
      costs nothing at all. Deliberately flat with no milestone bonuses -- see REVIEW_XP
      for why schedule-based bonuses cannot be made grade-neutral. */
   awardXP(REVIEW_XP);
+  // The ladder is driven by words mastered, so a level-up happens the moment this card's
+  // interval crosses the mastery threshold -- which is here, after the schedule was
+  // applied, not inside awardXP().
+  const levelAfter = currentLevel().level;
+  if(levelAfter > levelBefore) showLevelUpToast(levelAfter);
 }
 
 // Small progress header ("N / M words started · X%") shown above the Flashcards
