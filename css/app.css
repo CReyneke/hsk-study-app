@@ -255,6 +255,11 @@
     color:var(--sub);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.06em;
     padding:8px 0 2px;cursor:pointer;
   }
+  /* Row of accordion toggles (Sentences / Strokes / Breakdown) -- only one pane opens
+     at a time, so the card stays short enough to review without scrolling. */
+  .flash-detail-tabs{display:flex;gap:6px;justify-content:center;}
+  .flash-detail-tabs .flash-detail-toggle{width:auto;flex:1;min-width:0;padding:8px 4px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .flash-detail-tabs .flash-detail-toggle.open{color:var(--black);}
   .g-again{background:var(--red);color:var(--white);}
   .g-hard{background:var(--yellow-warm);}
   .g-good{background:var(--green-bright);color:var(--white);}
@@ -339,6 +344,73 @@
   .flash-detail{margin-top:10px;border-top:2px solid var(--black);padding-top:10px;}
   .flash-detail-block{margin-bottom:10px;}
   .flash-detail-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--sub);margin-bottom:4px;}
+
+  /* ---- Stroke order (Hanzi Writer) ---- */
+  .stroke-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:4px 0 6px;}
+  .stroke-cell{display:flex;flex-direction:column;align-items:center;gap:2px;}
+  /* The grid box reads as writing-practice paper, and makes proportion/placement
+     inside the square legible -- which is most of what stroke practice is teaching. */
+  .stroke-cell > div:first-child{
+    border:2px solid var(--black);border-radius:8px;background:var(--white);
+    background-image:linear-gradient(var(--line) 1px, transparent 1px),
+                     linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:50% 50%;background-position:center;
+    line-height:0;
+  }
+  .stroke-cell-cap{font-size:10.5px;color:var(--sub);font-weight:700;}
+  .stroke-controls{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+
+  /* ---- Handwriting quiz (Practice > Write It) ---- */
+  .hw-prompt{font-size:19px;font-weight:800;color:var(--black);margin:6px 0 2px;}
+  .hw-pinyin{font-size:15px;color:var(--blue-dark);font-weight:700;margin-bottom:10px;}
+  .hw-stage{display:flex;justify-content:center;margin:0 auto 10px;}
+  /* Writing box: same grid-paper cue as the stroke demos, sized large enough to draw
+     on comfortably with a fingertip, and capped so it still fits a small phone screen. */
+  .hw-stage > div{
+    border:3px solid var(--black);border-radius:12px;background:var(--white);
+    background-image:linear-gradient(var(--line) 1px, transparent 1px),
+                     linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:50% 50%;background-position:center;
+    box-shadow:4px 4px 0 var(--black);line-height:0;
+    width:min(72vw, 240px);
+  }
+  /* touch-action:none stops the browser treating a drawing gesture as a page scroll,
+     which otherwise makes the quiz nearly unusable on a phone. */
+  .hw-stage svg{touch-action:none;}
+  .hw-result{
+    margin-top:10px;border:2px solid var(--black);border-radius:12px;padding:8px 12px;
+    display:flex;align-items:center;justify-content:center;gap:12px;font-weight:700;font-size:13.5px;
+  }
+  .hw-result.ok{background:var(--forest-tint);}
+  .hw-result.bad{background:var(--accent-tint);}
+  .hw-result-word{font-family:var(--zh-font);font-size:30px;line-height:1;}
+
+  /* ---- Character structure / decomposition ---- */
+  .char-struct{border:2px solid var(--black);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--white);}
+  .char-struct-head{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .char-struct-hanzi{font-family:var(--zh-font);font-size:32px;line-height:1;color:var(--black);}
+  .char-struct-meta{display:flex;flex-direction:column;gap:1px;font-size:12.5px;min-width:0;}
+  .char-struct-py{color:var(--blue-dark);font-weight:700;}
+  .char-struct-row{font-size:13px;margin:3px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .cs-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--sub);}
+  .comp-chip{
+    font-family:var(--zh-font);font-size:20px;line-height:1;
+    border:2px solid var(--black);border-radius:8px;padding:3px 8px;background:var(--bg);
+  }
+  .comp-glosses{margin-top:6px;font-size:12px;line-height:1.45;}
+  .char-etym{
+    margin-top:6px;font-size:12.5px;line-height:1.5;
+    background:var(--bg);border-radius:8px;padding:6px 8px;
+    display:flex;align-items:center;gap:5px;flex-wrap:wrap;
+  }
+  .char-etym b{font-family:var(--zh-font);font-size:19px;}
+  .etym-tag{
+    font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+    border-radius:999px;padding:2px 7px;background:var(--black);color:var(--white);white-space:nowrap;
+  }
+  .etym-semantic{background:var(--red);}
+  .etym-phonetic{background:var(--blue);}
+  .etym-plus{font-weight:800;color:var(--sub);}
 
   /* Character sheet */
   .char-sheet{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}

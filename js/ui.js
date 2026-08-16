@@ -375,6 +375,8 @@ function renderLibrary(app){
               <button class="toggle-link" id="libPhrasePlay${r.i}">🔊 Listen to phrase</button>
             </div>` : ""}
           <div class="transbar" id="libDetailBar${r.i}">Tap a word to translate it here.</div>
+          <div class="flash-detail-block" id="libStrokes${r.i}"></div>
+          <div class="flash-detail-block" id="libStruct${r.i}"></div>
         `;
         wrap.appendChild(detail);
         if(hasSentence){
@@ -384,6 +386,25 @@ function renderLibrary(app){
         if(hasPhrase){
           detail.querySelector(`#libPhrasePlay${r.i}`).onclick = (e)=>{ e.stopPropagation(); speak(extra.phrase.zh); };
           wireTokClicks(detail.querySelector(`#libPhraseZh${r.i}`), `libDetailBar${r.i}`);
+        }
+        // Stroke order + character breakdown, rendered inline here (the Library row is
+        // already an explicit "tell me more" expansion, so unlike the flashcard there's
+        // no need to hide these behind further toggles). Clicks are stopped from
+        // bubbling because the row itself is a collapse-toggle.
+        detail.onclick = (e)=>{ if(e.target.closest(".stroke-controls, .comp-chip")) e.stopPropagation(); };
+        if(charsWithStrokes(r.hanzi).length){
+          const sEl = detail.querySelector(`#libStrokes${r.i}`);
+          sEl.innerHTML = `<div class="flash-detail-label">Stroke order</div>`;
+          const holder = document.createElement("div");
+          sEl.appendChild(holder);
+          renderStrokePanel(holder, r.hanzi, {size: 78});
+        }
+        if(Array.from(r.hanzi).some(c => charInfo(c))){
+          const cEl = detail.querySelector(`#libStruct${r.i}`);
+          cEl.innerHTML = `<div class="flash-detail-label">Character breakdown</div>`;
+          const holder2 = document.createElement("div");
+          cEl.appendChild(holder2);
+          renderWordStructure(holder2, r.hanzi);
         }
       }
       listEl.appendChild(wrap);
@@ -593,15 +614,16 @@ let flashPos = 0;
 let flashRevealed = false;
 let lastAutoplayedIdx = null;
 let flashSentPyShown = false;
-// Collapsed by default (like a "Sentences ▾" dropdown) so the example sentence/phrase
-// doesn't add height until asked for -- keeps a card's full review fitting on one mobile
-// screen without scrolling, on top of the fixed-to-bottom grade buttons.
-let flashDetailOpen = false;
+// Which flip-back detail pane is open on the current card: null | "sent" | "strokes" |
+// "struct". Accordion (one at a time) and closed by default, so the extra detail doesn't
+// add height until asked for -- that's what keeps a card's full review fitting on one
+// mobile screen without scrolling, above the fixed-to-bottom grade buttons.
+let flashDetailPane = null;
 
 function renderFlash(app){
   flashQueue = getDueCardIndices();
   flashPos = 0;
-  flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false;
+  flashRevealed = false; flashSentPyShown = false; flashDetailPane = null;
   lastAutoplayedIdx = null;
   renderFlashCard(app);
 }
@@ -692,13 +714,13 @@ function renderFlashCard(app){
     if(remaining > 0){
       document.getElementById("moreNew").onclick = ()=>{
         flashQueue = introduceExtraCards(10);
-        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
+        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
         renderFlashCard(app);
       };
     }
     document.getElementById("morePractice").onclick = ()=>{
       flashQueue = extraPracticeSample(15);
-      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
+      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
       renderFlashCard(app);
     };
     return;
@@ -721,13 +743,13 @@ function renderFlashCard(app){
     if(remaining > 0){
       document.getElementById("moreNew").onclick = ()=>{
         flashQueue = introduceExtraCards(10);
-        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
+        flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
         renderFlashCard(app);
       };
     }
     document.getElementById("morePractice").onclick = ()=>{
       flashQueue = extraPracticeSample(15);
-      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false; lastAutoplayedIdx = null;
+      flashPos = 0; flashRevealed = false; flashSentPyShown = false; flashDetailPane = null; lastAutoplayedIdx = null;
       renderFlashCard(app);
     };
     return;
@@ -740,6 +762,11 @@ function renderFlashCard(app){
   const extra = vocabExtra(idx);
   const hasSentence = extra && extra.sentence;
   const hasPhrase = extra && extra.phrase;
+  // Both guard against the stroke feature being absent entirely (library failed to
+  // load, or this word's characters aren't in the generated data) -- the toggles simply
+  // don't render in that case rather than opening an empty pane.
+  const hasStrokeChars = charsWithStrokes(hanzi).length > 0;
+  const hasStructure = Array.from(hanzi).some(c => charInfo(c));
   const card = document.createElement("div");
   card.className = "card";
   card.innerHTML = `
@@ -755,7 +782,12 @@ function renderFlashCard(app){
       <button class="secondary icon-btn" id="playBtn" title="Play sound again">🔊</button>
       <button class="secondary" id="revealBtn">${flashRevealed? "Hide" : "Show pinyin + meaning"}</button>
     </div>
-    ${flashRevealed && (hasSentence || hasPhrase) ? `<button class="flash-detail-toggle" id="flashDetailToggle">${flashDetailOpen ? "▴" : "▾"} Sentences</button>` : ""}
+    ${flashRevealed ? `
+      <div class="flash-detail-tabs">
+        ${(hasSentence || hasPhrase) ? `<button class="flash-detail-toggle ${flashDetailPane==='sent'?'open':''}" data-pane="sent">${flashDetailPane==='sent' ? "▴" : "▾"} Sentences</button>` : ""}
+        ${hasStrokeChars ? `<button class="flash-detail-toggle ${flashDetailPane==='strokes'?'open':''}" data-pane="strokes">${flashDetailPane==='strokes' ? "▴" : "▾"} Strokes</button>` : ""}
+        ${hasStructure ? `<button class="flash-detail-toggle ${flashDetailPane==='struct'?'open':''}" data-pane="struct">${flashDetailPane==='struct' ? "▴" : "▾"} Breakdown</button>` : ""}
+      </div>` : ""}
     <div id="flashDetail"></div>
     <div class="grade-btns" id="gradeBtns" style="visibility:${flashRevealed?'visible':'hidden'}">
       <button class="g-again" data-g="0">Again</button>
@@ -773,17 +805,32 @@ function renderFlashCard(app){
   }
   document.getElementById("playBtn").onclick=()=>speak(hanzi);
   document.getElementById("revealBtn").onclick=()=>{ flashRevealed = !flashRevealed; renderFlashCard(app); };
-  // Flip-back detail: example sentence + related phrase, when the word has one.
-  // Collapsed behind the "Sentences" toggle above by default so a revealed card
-  // still fits on one mobile screen without scrolling; gracefully renders nothing
-  // if neither is available for this word.
-  if(flashRevealed && (hasSentence || hasPhrase)){
-    document.getElementById("flashDetailToggle").onclick = ()=>{
-      flashDetailOpen = !flashDetailOpen;
-      renderFlashCard(app);
-    };
+  // Flip-back detail panes: example sentences, stroke order, and character breakdown.
+  // Only ONE pane is open at a time (accordion, all closed by default) so a revealed
+  // card still fits on one mobile screen without scrolling -- see the fixed-bottom
+  // grade bar, which assumes the card above it stays short.
+  if(flashRevealed){
+    card.querySelectorAll(".flash-detail-toggle").forEach(btn=>{
+      btn.onclick = ()=>{
+        const pane = btn.dataset.pane;
+        flashDetailPane = (flashDetailPane === pane) ? null : pane;
+        renderFlashCard(app);
+      };
+    });
   }
-  if(flashRevealed && flashDetailOpen && (hasSentence || hasPhrase)){
+  if(flashRevealed && flashDetailPane === "strokes" && hasStrokeChars){
+    const strokeWrap = document.createElement("div");
+    strokeWrap.className = "flash-detail";
+    document.getElementById("flashDetail").appendChild(strokeWrap);
+    renderStrokePanel(strokeWrap, hanzi);
+  }
+  if(flashRevealed && flashDetailPane === "struct" && hasStructure){
+    const structWrap = document.createElement("div");
+    structWrap.className = "flash-detail";
+    document.getElementById("flashDetail").appendChild(structWrap);
+    renderWordStructure(structWrap, hanzi);
+  }
+  if(flashRevealed && flashDetailPane === "sent" && (hasSentence || hasPhrase)){
     const detailEl = document.getElementById("flashDetail");
     detailEl.innerHTML = `
       <div class="flash-detail">
@@ -835,7 +882,7 @@ function renderFlashCard(app){
       const afterPct = knowledgePercent(idx);
       showKnowledgeDelta(card.querySelector(".know-badge") || b, beforePct, afterPct);
       flashPos++;
-      flashRevealed = false; flashSentPyShown = false; flashDetailOpen = false;
+      flashRevealed = false; flashSentPyShown = false; flashDetailPane = null;
       setTimeout(()=> renderFlashCard(app), 320);
     };
   });
@@ -1703,7 +1750,7 @@ function finishPracticeSession(mode, pool, order, score, idFn){
   const usedIds = [...new Set(order.map(i => idFn(pool[i])))];
   state.lastPracticeSet[mode] = usedIds;
   saveState();
-  const words = mode === "match" ? usedIds.map(idx => VOCAB[idx][0]) : usedIds;
+  const words = (mode === "match" || mode === "write") ? usedIds.map(idx => VOCAB[idx][0]) : usedIds;
   practiceRecap = { mode, answered: score.answered, correct: score.correct, xp: score.xp, wordCount: words.length, words };
   resetModeSession(mode);
   render();
@@ -1715,6 +1762,7 @@ function resetModeSession(mode){
   else if(mode === "order"){ woOrder = null; woIndex = 0; woOrderKey = null; }
   else if(mode === "tf"){ tfOrder = null; tfIndex = 0; tfOrderKey = null; }
   else if(mode === "match"){ wmOrder = null; wmIndex = 0; wmOrderKey = null; }
+  else if(mode === "write"){ hwOrder = null; hwIndex = 0; hwOrderKey = null; }
 }
 // Renders the end-of-session recap card in place of the next mode-question. Both
 // buttons simply clear the recap and re-render -- the mode's session was already
@@ -1723,7 +1771,7 @@ function resetModeSession(mode){
 // #practiceBody, so "back to modes" doubles as returning to the picker.
 function renderPracticeRecap(container){
   const r = practiceRecap;
-  const modeLabel = {fill:"Fill in the Blank", order:"Word Order", tf:"True or False", match:"Word Match"}[r.mode] || "Practice";
+  const modeLabel = {fill:"Fill in the Blank", order:"Word Order", tf:"True or False", match:"Word Match", write:"Write It"}[r.mode] || "Practice";
   const acc = r.answered ? Math.round((r.correct / r.answered) * 100) : 0;
   const shown = r.words.slice(0, 12).map(w => w.length > 16 ? w.slice(0, 16) + "…" : w);
   const wordsLine = shown.length ? shown.join("、") + (r.words.length > 12 ? "…" : "") : "";
@@ -1814,22 +1862,25 @@ function resetPracticeSessions(){
   woOrder = null; woIndex = 0; woScore = null;
   tfOrder = null; tfIndex = 0; tfScore = null;
   wmOrder = null; wmIndex = 0; wmScore = null;
+  hwOrder = null; hwIndex = 0; hwScore = null;
   practiceRecap = null;
 }
 function renderPractice(app){
   const fillPool = buildPracticePool();
   const sentPool = buildSentencePool();
   const matchPool = buildWordMatchPool();
+  const writePool = buildHandwritingPool();
   const wrap = document.createElement("div");
   wrap.innerHTML = `
     <div class="card">
       <div class="tab-hero">${mascotBounceImg("success-achievement-milestone.png","")}<h3>Practice</h3></div>
-      <p class="muted">${fillPool.length + sentPool.length * 2 + matchPool.length} practice questions available across four exercise types, HSK-exam style, drawn only from words you've started -- filter by HSK level and how well you know them below.</p>
+      <p class="muted">${fillPool.length + sentPool.length * 2 + matchPool.length + writePool.length} practice questions available across five exercise types, HSK-exam style, drawn only from words you've started -- filter by HSK level and how well you know them below.</p>
       <div class="lib-filters" id="practiceModeFilters">
         <button data-m="fill" class="${practiceMode==='fill'?'active':''}">Fill in the Blank (${fillPool.length})</button>
         <button data-m="order" class="${practiceMode==='order'?'active':''}">Word Order (${sentPool.length})</button>
         <button data-m="tf" class="${practiceMode==='tf'?'active':''}">True or False (${sentPool.length})</button>
         <button data-m="match" class="${practiceMode==='match'?'active':''}">Word Match (${matchPool.length})</button>
+        ${writePool.length || strokesAvailable() ? `<button data-m="write" class="${practiceMode==='write'?'active':''}">Write It (${writePool.length})</button>` : ""}
       </div>
       <div class="muted" style="font-weight:800;margin:8px 0 4px;">HSK level</div>
       <div class="lib-filters" id="practiceLevelFilters">
@@ -1906,6 +1957,7 @@ function renderPractice(app){
   else if(practiceMode === "order") renderPracticeOrder(body);
   else if(practiceMode === "tf") renderPracticeTF(body);
   else if(practiceMode === "match") renderPracticeWordMatch(body);
+  else if(practiceMode === "write") renderPracticeWrite(body);
   else renderPracticeFill(body);
 }
 
@@ -2358,6 +2410,179 @@ function renderPracticeWordMatch(container){
     }
   };
 }
+/* ---- Mode 5: Write the character (handwriting quiz) ----
+   Prompted with the meaning + pinyin, the learner draws the word one character at a
+   time; Hanzi Writer validates each stroke, so this is genuine recall-and-produce
+   rather than recognition. Only words whose characters ALL have stroke data are
+   eligible, so a word can never strand the learner halfway through. */
+function buildHandwritingPool(){
+  if(!strokesAvailable()) return [];
+  return Object.keys(state.cards)
+    .map(Number)
+    .filter(idx => isPracticeEligible(idx) && VOCAB[idx]
+      && Array.from(VOCAB[idx][0]).every(hasStrokeData));
+}
+let hwOrder = null;
+let hwIndex = 0;
+let hwOrderKey = null;
+let hwScore = null;
+// Per-question progress: which character of the word we're on, and how many strokes
+// were drawn wrong across the whole word (drives the SRS grade at the end).
+let hwCharPos = 0;
+let hwMistakes = 0;
+let hwDone = false;
+function renderPracticeWrite(container){
+  const pool = buildHandwritingPool();
+  if(!pool.length){
+    container.innerHTML = `
+      <div class="card">
+        <p class="muted">${strokesAvailable()
+          ? "No started words match the current HSK level / knowledge level filters. Study a few more flashcards, or broaden the filters above, then come back here to practise writing them."
+          : "Stroke data isn't available, so handwriting practice can't run."}</p>
+      </div>`;
+    return;
+  }
+  const hwOrderKeyNow = pool.length + "|" + state.practiceCount;
+  if(!hwOrder || hwOrderKey !== hwOrderKeyNow){
+    hwOrder = buildRotatedOrder(pool, p => p, state.lastPracticeSet.write, sessionSize(pool.length));
+    hwOrderKey = hwOrderKeyNow;
+    hwIndex = 0;
+    hwScore = {correct:0, answered:0, xp:0};
+  }
+  const qNum = hwIndex % hwOrder.length;
+  const idx = pool[hwOrder[qNum]];
+  const [hanzi, pinyin, eng] = VOCAB[idx];
+  const chars = Array.from(hanzi);
+  const lvl = vocabLevel(idx);
+  const pct = Math.round(((qNum + 1) / hwOrder.length) * 100);
+  hwCharPos = 0; hwMistakes = 0; hwDone = false;
+
+  container.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0;">Write the character <span class="badge">question ${qNum+1} of ${hwOrder.length}</span></h3>
+      <p class="muted">Draw the word from its meaning and pinyin. Each stroke is checked in order — a hint appears if you miss the same stroke twice.</p>
+      <div class="progress-header">
+        <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${pct}%;"></div></div>
+        <div class="muted center" style="margin-top:4px;font-size:12px;">Question ${qNum+1} / ${hwOrder.length} · ${pct}%</div>
+      </div>
+      <div class="lib-filters" id="hwOutlineToggle">
+        <button data-o="1" class="${state.writeShowOutline?'active':''}">Show outline</button>
+        <button data-o="0" class="${!state.writeShowOutline?'active':''}">From memory</button>
+      </div>
+    </div>
+    <div class="card center">
+      <div class="flash-top-row">
+        <span class="lvl-badge lvl-${lvl}">${LEVEL_LABEL[lvl]}</span>
+        <span class="muted center" style="flex:1;">Character ${hwCharPos+1} of ${chars.length}</span>
+      </div>
+      <div class="hw-prompt">${eng}</div>
+      <div class="hw-pinyin">${pinyin}</div>
+      <div class="hw-stage" id="hwStage"></div>
+      <div class="flash-controls">
+        <button class="secondary" id="hwHint">Show me</button>
+        <button class="secondary" id="hwSkip">Skip word</button>
+      </div>
+      <div id="hwResult"></div>
+    </div>
+    <div class="flash-controls">
+      <button class="secondary" id="hwNext" disabled>Next question →</button>
+    </div>
+  `;
+
+  const stage = container.querySelector("#hwStage");
+  const resultEl = container.querySelector("#hwResult");
+  const nextBtn = container.querySelector("#hwNext");
+  const posLabel = container.querySelector(".flash-top-row .muted");
+  let writer = null;
+
+  container.querySelector("#hwOutlineToggle").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-o]");
+    if(!b) return;
+    state.writeShowOutline = b.dataset.o === "1";
+    saveState();
+    render();
+  });
+
+  // Renders the quiz for the character at hwCharPos, chaining to the next one (or
+  // finishing the word) as each completes.
+  function startChar(){
+    stage.innerHTML = "";
+    posLabel.textContent = `Character ${hwCharPos+1} of ${chars.length}`;
+    const target = document.createElement("div");
+    stage.appendChild(target);
+    writer = HanziWriter.create(target, chars[hwCharPos], writerOptions(220, {
+      showCharacter: false,
+      showOutline: !!state.writeShowOutline,
+      showHintAfterMisses: 2,
+      highlightOnComplete: true
+    }));
+    makeWriterResponsive(target, 220);
+    writer.quiz({
+      onMistake: ()=>{ hwMistakes++; },
+      onComplete: ()=>{
+        hwCharPos++;
+        if(hwCharPos < chars.length) setTimeout(startChar, 550);
+        else setTimeout(finishWord, 550);
+      }
+    });
+  }
+
+  function finishWord(skipped){
+    if(hwDone) return;
+    hwDone = true;
+    nextBtn.disabled = false;
+    const beforePct = knowledgePercent(idx);
+    const xpBefore = state.xp;
+    // Map handwriting accuracy onto Anki's 4-button scale: a clean write is real
+    // recall (Good), a couple of wrong strokes is shaky (Hard), and lots of misses or
+    // a skip means it wasn't recalled at all (Again).
+    let grade, label, good;
+    if(skipped){ grade = 0; label = "Skipped"; good = false; }
+    else if(hwMistakes === 0){ grade = 2; label = "Perfect — no mistakes!"; good = true; }
+    else if(hwMistakes <= 2){ grade = 1; label = `Close — ${hwMistakes} wrong stroke${hwMistakes===1?"":"s"}`; good = true; }
+    else { grade = 0; label = `${hwMistakes} wrong strokes — worth another look`; good = false; }
+    if(good){ state.correctAnswers = (state.correctAnswers||0)+1; }
+    else { state.wrongAnswers = (state.wrongAnswers||0)+1; }
+    saveState();
+    gradeCard(idx, grade);
+    const afterPct = knowledgePercent(idx);
+    resultEl.innerHTML = `
+      <div class="hw-result ${good?"ok":"bad"}">
+        <div class="hw-result-word">${hanzi}</div>
+        <div>${label}</div>
+      </div>`;
+    showKnowledgeDelta(resultEl.querySelector(".hw-result") || nextBtn, beforePct, afterPct);
+    if(good) feedbackFX(nextBtn, true, grade === 2 ? "Perfect!" : "Good");
+    else feedbackFX(nextBtn, false);
+    hwScore.answered++;
+    if(good) hwScore.correct++;
+    hwScore.xp += state.xp - xpBefore;
+    speak(hanzi);
+  }
+
+  container.querySelector("#hwHint").onclick = ()=>{
+    // Animating the current character counts as needing help, so it costs a "mistake" --
+    // otherwise the grade wouldn't reflect that the word wasn't actually recalled.
+    if(hwDone || !writer) return;
+    hwMistakes++;
+    writer.animateCharacter();
+  };
+  container.querySelector("#hwSkip").onclick = ()=>{
+    if(hwDone) return;
+    if(writer) writer.cancelQuiz();
+    finishWord(true);
+  };
+  nextBtn.onclick = ()=>{
+    if(qNum === hwOrder.length - 1){
+      finishPracticeSession("write", pool, hwOrder, hwScore, p => p);
+    } else {
+      hwIndex = hwIndex + 1;
+      render();
+    }
+  };
+  startChar();
+}
+
 /* ---- Grammar ---- */
 let grammarSearch = "";
 // "all" | 1 | 2 | 3 | 4 -- filters GRAMMAR by lvl, reusing the .lib-filters pill pattern.

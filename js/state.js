@@ -50,6 +50,12 @@ function loadState(){
   // Consulted by buildRotatedOrder() so the next session in that mode prefers
   // drawing from whatever wasn't just used, instead of risking an immediate repeat.
   s.lastPracticeSet = s.lastPracticeSet || {fill:[], order:[], tf:[], match:[]};
+  // additive: "write" joined the practice modes after lastPracticeSet already existed in
+  // saved games, so backfill the key rather than assuming the whole object is fresh.
+  if(!Array.isArray(s.lastPracticeSet.write)) s.lastPracticeSet.write = [];
+  // additive: handwriting-quiz difficulty -- true traces a greyed outline, false makes
+  // the learner produce the character from memory. Defaults to the gentler setting.
+  if(s.writeShowOutline === undefined || s.writeShowOutline === null) s.writeShowOutline = true;
   // additive: which HSK level sets Practice-tab sessions are drawn from, same
   // shape/default as state.flashLevels but kept as its own independent choice.
   if(!Array.isArray(s.practiceLevels) || s.practiceLevels.length === 0) s.practiceLevels = [1,2,3];
