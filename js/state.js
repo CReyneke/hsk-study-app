@@ -336,21 +336,122 @@ function getIntroducedIndices(){
   return Object.keys(state.cards).map(Number);
 }
 
-function introduceNewCardsForToday(){
+/* ============================ NEW-WORD SELECTION ============================
+   Which words get introduced next, and in what order. This used to just walk VOCAB
+   from index 0, which is alphabetical-by-pinyin within each HSK level -- so day one
+   handed you 爱/八/爸爸/吧/白天/百/半 (love, eight, dad, a particle, daytime, hundred,
+   half): sorted by sound, useful for nothing. Two signals replace that:
+
+     1. Frequency  -- how often the word actually occurs in this app's own corpus
+                      (WORD_FREQ, see js/word-freq.js). Learning 的/了/一/不/是 before
+                      包子/杯子 means you can build real sentences almost immediately.
+     2. Unlocking  -- words assembled from characters you've already studied. This
+                      matters far more in Chinese than in European languages: 电话 is
+                      nearly free once you know 电 and 话. Words get a rank bonus in
+                      proportion to how many of their characters you've already met,
+                      so the queue keeps surfacing "you already have the parts" words.
+
+   The two combine into one ordering rather than alternating, so a word that is both
+   common and already-unlocked comes first, and a rare word made of known characters
+   still has to wait behind genuinely common ones. */
+
+// Rank of each word by corpus frequency, 0 = most frequent. Computed once, lazily,
+// since it's a 1000-item sort that most page loads never need.
+let _freqRankCache = null;
+function freqRank(idx){
+  if(!_freqRankCache){
+    const freq = (typeof WORD_FREQ !== "undefined") ? WORD_FREQ : [];
+    const order = VOCAB.map((_, i) => i)
+      .sort((a, b) => (freq[b] || 0) - (freq[a] || 0) || a - b);
+    _freqRankCache = new Array(VOCAB.length);
+    order.forEach((vocabIdx, rank) => { _freqRankCache[vocabIdx] = rank; });
+  }
+  return _freqRankCache[idx] || 0;
+}
+
+// Characters the learner has actually studied, i.e. drawn from words whose card exists
+// and has left the "new" state. A card introduced but not yet graded doesn't count --
+// being shown a word once isn't the same as knowing its characters.
+function seenCharacters(){
+  const set = new Set();
+  Object.keys(state.cards).forEach(key=>{
+    const c = state.cards[key];
+    if(!c || c.state === "new") return;
+    const w = VOCAB[Number(key)];
+    if(w) for(const ch of w[0]) set.add(ch);
+  });
+  return set;
+}
+
+// How many rank positions a fully-unlocked word may jump. Deliberately finite: at ~200
+// it pulls unlocked words forward strongly without letting an obscure word leapfrog the
+// high-frequency core, which is what you actually need first.
+const UNLOCK_RANK_BONUS = 200;
+function introductionScore(idx, seen){
+  const chars = Array.from(VOCAB[idx][0]);
+  const known = chars.filter(c => seen.has(c)).length;
+  const fraction = chars.length ? known / chars.length : 0;
+  return freqRank(idx) - UNLOCK_RANK_BONUS * fraction;
+}
+
+// The next `n` words to introduce: un-introduced, eligible for the learner's current
+// HSK-level selection, best-scoring first. Ties break on index so the order is stable.
+//
+// Homographs are deliberately spread out. VOCAB holds several written forms more than
+// once as genuinely different words (还 hái "still" vs 还 huán "to return"; 得 de/dé/děi;
+// 地 de vs dì), and because frequency is counted per written form they score identically
+// and would otherwise land in the same batch -- the worst possible case of the
+// interference that hurts learning similar items together. So a form is held back while
+// another entry sharing it is still unsettled (not yet in stable review), and never
+// appears twice in one batch.
+function pickNextWords(n){
   const introduced = new Set(getIntroducedIndices());
+  const seen = seenCharacters();
+  const unsettled = new Set();
+  Object.keys(state.cards).forEach(key=>{
+    const c = state.cards[key];
+    const w = VOCAB[Number(key)];
+    if(w && c && c.state !== "review") unsettled.add(w[0]);
+  });
+
+  const candidates = [];
+  for(let i = 0; i < VOCAB.length; i++){
+    if(introduced.has(i)) continue;
+    if(!isLevelEligible(i)) continue;
+    candidates.push(i);
+  }
+  candidates.sort((a, b) => introductionScore(a, seen) - introductionScore(b, seen) || a - b);
+
+  const pick = (respectUnsettled)=>{
+    const out = [];
+    const forms = new Set();
+    for(const idx of candidates){
+      const form = VOCAB[idx][0];
+      if(forms.has(form)) continue;
+      if(respectUnsettled && unsettled.has(form)) continue;
+      out.push(idx);
+      forms.add(form);
+      if(out.length >= n) break;
+    }
+    return out;
+  };
+  // Fall back to ignoring the "unsettled" hold if it would otherwise starve the queue
+  // entirely (e.g. only homographs of in-progress words remain); never relax the
+  // no-duplicate-form-in-one-batch rule.
+  const picked = pick(true);
+  return picked.length ? picked : pick(false);
+}
+
+function introduceNewCardsForToday(){
   const t = todayStr();
-  // count how many were introduced today already
   let introducedToday = 0;
   Object.values(state.cards).forEach(c=>{ if(c.introducedOn === t) introducedToday++; });
-  let idx = 0;
-  while(introducedToday < NEW_PER_DAY && idx < VOCAB.length){
-    if(!introduced.has(idx)){
-      ensureCard(idx);
-      introduced.add(idx);
-      introducedToday++;
-    }
-    idx++;
-  }
+  const remaining = NEW_PER_DAY - introducedToday;
+  if(remaining <= 0) return;
+  // Previously this ignored the HSK-level filter (unlike introduceExtraCards, which
+  // honoured it), so setting flashcards to e.g. HSK 3 only still created HSK 1 cards
+  // that could never come up as due -- they just accumulated invisibly.
+  pickNextWords(remaining).forEach(idx => ensureCard(idx));
   saveState();
 }
 introduceNewCardsForToday();
@@ -359,6 +460,11 @@ introduceNewCardsForToday();
 function activeFlashLevels(){
   return (Array.isArray(state.flashLevels) && state.flashLevels.length) ? state.flashLevels : [1,2,3];
 }
+// Word's HSK difficulty tier (1/2/3), stored as VOCAB[i][3]. Defaults to 3 (this app's
+// core list is HSK 3.0 Level 3 vocabulary) if missing. Defined here rather than in ui.js
+// because isLevelEligible() below is reached from the load-time card introduction, which
+// runs while this file executes -- i.e. before ui.js exists.
+function vocabLevel(idx){ const v = VOCAB[idx]; return (v && v[3]) || 3; }
 function isLevelEligible(idx){
   return activeFlashLevels().includes(vocabLevel(idx));
 }

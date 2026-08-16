@@ -252,9 +252,8 @@ function wordCategory(idx){
   return "learning";
 }
 const CAT_LABEL = { new:"New", learning:"Learning", familiar:"Familiar", mastered:"Mastered" };
-// Word's HSK difficulty tier (1/2/3), stored as VOCAB[i][3]/EXTRA_WORDS[i][3].
-// Defaults to 3 (this app's core list is HSK 3.0 Level 3 vocabulary) if missing.
-function vocabLevel(idx){ const v = VOCAB[idx]; return (v && v[3]) || 3; }
+// vocabLevel() lives in state.js -- it's needed there by isLevelEligible(), which the
+// load-time new-card introduction now calls, and state.js runs before this file.
 // Optional per-word extra info (example sentence / related phrase), VOCAB[i][4].
 function vocabExtra(idx){ const v = VOCAB[idx]; return (v && v[4]) || {}; }
 const LEVEL_LABEL = { 1:"HSK 1", 2:"HSK 2", 3:"HSK 3", 4:"HSK 4" };
@@ -290,6 +289,7 @@ function renderLibrary(app){
         <option value="default" ${libSort==='default'?'selected':''}>Sort: default order</option>
         <option value="level-asc" ${libSort==='level-asc'?'selected':''}>Sort: level (1 → 3)</option>
         <option value="level-desc" ${libSort==='level-desc'?'selected':''}>Sort: level (3 → 1)</option>
+        <option value="freq" ${libSort==='freq'?'selected':''}>Sort: most common first</option>
       </select>
     </div>
     <div class="lib-count" id="libCount"></div>
@@ -326,6 +326,7 @@ function renderLibrary(app){
     if(q) rows = rows.filter(r=> r.hanzi.includes(q) || r.py.toLowerCase().includes(q) || r.en.toLowerCase().includes(q));
     if(libSort === "level-asc") rows.sort((a,b)=> a.lvl - b.lvl);
     else if(libSort === "level-desc") rows.sort((a,b)=> b.lvl - a.lvl);
+    else if(libSort === "freq") rows.sort((a,b)=> freqRank(a.i) - freqRank(b.i));
     document.getElementById("libCount").textContent = `Showing ${rows.length} word(s)`;
     listEl.innerHTML = "";
     rows.forEach(r=>{
@@ -630,21 +631,12 @@ function renderFlash(app){
 
 // Pull extra un-introduced words right now, ignoring the daily cap.
 // Only draws from levels currently selected in the flashcard set picker.
+// "Learn N more now" -- pulls from the same frequency/unlocking-ordered queue as the
+// automatic daily introduction (see pickNextWords in state.js), so studying ahead gets
+// you the same well-chosen words, just sooner.
 function introduceExtraCards(n){
-  const introduced = new Set(getIntroducedIndices());
-  const t = todayStr();
-  let added = 0;
-  let idx = 0;
-  const newIdx = [];
-  while(added < n && idx < VOCAB.length){
-    if(!introduced.has(idx) && isLevelEligible(idx)){
-      ensureCard(idx);
-      introduced.add(idx);
-      newIdx.push(idx);
-      added++;
-    }
-    idx++;
-  }
+  const newIdx = pickNextWords(n);
+  newIdx.forEach(idx => ensureCard(idx));
   saveState();
   return newIdx;
 }
