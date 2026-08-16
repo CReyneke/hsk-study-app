@@ -292,7 +292,25 @@
   .opt.correct{background:var(--green-lime);border-color:var(--black);}
   .opt.wrong{background:var(--red);border-color:var(--black);color:var(--white);}
   .practice-blank{display:inline-block;min-width:2.4em;padding:0 4px;border-bottom:3px solid var(--red);color:var(--red);font-weight:800;text-align:center;}
-  .toggle-link{background:none;border:none;color:var(--blue);text-decoration:underline;cursor:pointer;font-size:13px;padding:0;font-weight:700;}
+  /* The app's most-used control style, and previously its worst accessibility failure:
+     --blue on white measured 2.69:1 (WCAG AA wants 4.5) and the box rendered only 15-17px
+     tall against a 44px recommended tap target. --blue-dark takes contrast to ~8:1.
+
+     The tap target is grown with a pseudo-element rather than by padding the box, because
+     these appear inline inside sentences ("Open classic reading passages") where a 44px
+     tall box would wreck the line spacing around it. The overlay is invisible, doesn't
+     affect layout, and clicks on it still land on the button. */
+  .toggle-link{
+    background:none;border:none;color:var(--blue-dark);
+    text-decoration:underline;text-underline-offset:2px;
+    cursor:pointer;font-size:13px;font-weight:700;
+    padding:4px 2px;position:relative;
+  }
+  .toggle-link::after{
+    content:"";position:absolute;left:0;right:0;top:50%;
+    transform:translateY(-50%);height:44px;
+  }
+  .toggle-link:hover{color:var(--blue);}
   .grammar-item{border-bottom:2px solid var(--black);padding:14px 0;}
   .grammar-item h3{margin:0 0 4px;font-size:17px;font-weight:800;color:var(--black);font-family:var(--display);}
   .grammar-item .zh{font-family:var(--zh-font);font-size:20px;margin:6px 0;color:var(--black);}
@@ -525,6 +543,36 @@
     border:3px solid var(--red);border-radius:12px;padding:10px 12px;margin-bottom:10px;
     background:var(--accent-tint);font-size:13px;
   }
+  /* ---- Cross-device sync button ----
+     These rules went missing when app.css was replaced wholesale during the top-nav
+     migration, which left the button unstyled: static, full-width and stranded below the
+     footer. Restored here, pinned over the black header where a white pill reads clearly.
+     Sized to a proper 44px tap target, unlike the original. */
+  .sync-fab{
+    position:fixed;top:8px;left:10px;z-index:250;
+    display:flex;align-items:center;gap:7px;
+    min-height:44px;padding:8px 16px;
+    font-family:var(--sans);font-size:12px;font-weight:800;letter-spacing:.02em;
+    text-transform:uppercase;
+    background:var(--white);color:var(--black);
+    border:3px solid var(--black);border-radius:999px;
+    box-shadow:3px 3px 0 var(--black);cursor:pointer;
+  }
+  .sync-fab:hover{filter:brightness(1.05);}
+  .sync-fab:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--black);}
+  /* Status at a glance: grey idle, amber in flight, green synced, red needs attention. */
+  .sync-fab .dot{width:9px;height:9px;border-radius:50%;background:var(--sub);flex-shrink:0;}
+  .sync-fab .dot.ok{background:var(--green-bright);}
+  .sync-fab .dot.pending{background:var(--yellow-warm);}
+  .sync-fab .dot.error{background:var(--red);}
+  /* The header is centred text, so on narrow screens the pill would sit on top of the
+     title. Reserving space on the left keeps the two apart. */
+  header{padding-left:104px;padding-right:104px;}
+  @media (max-width: 420px){
+    .sync-fab{padding:6px 12px;font-size:11px;}
+    header{padding-left:92px;padding-right:12px;text-align:left;}
+  }
+
   /* Shown once if localStorage is unavailable (private mode, quota exceeded). Deliberately
      loud and full-width -- silently failing to save progress is the worst outcome here. */
   .storage-warning{
