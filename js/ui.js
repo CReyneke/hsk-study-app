@@ -247,8 +247,8 @@ function showKnowledgeDelta(anchorEl, beforePct, afterPct){
 function wordCategory(idx){
   const c = getCard(idx);
   if(!c || c.state === "new") return "new";
-  if(c.state === "review" && c.interval >= 21) return "mastered";
-  if(c.state === "review" && c.interval >= 4) return "familiar";
+  if(c.state === "review" && c.interval >= MASTERED_INTERVAL_DAYS) return "mastered";
+  if(c.state === "review" && c.interval >= FAMILIAR_INTERVAL_DAYS) return "familiar";
   return "learning";
 }
 const CAT_LABEL = { new:"New", learning:"Learning", familiar:"Familiar", mastered:"Mastered" };
@@ -1022,6 +1022,9 @@ function renderFlashCard(app){
       const grade = Number(b.dataset.g);
       card.querySelectorAll("[data-g]").forEach(x=>x.disabled=true);
       const beforePct = knowledgePercent(idx);
+      // Recalling the Chinese from an English prompt is production, not recognition --
+      // tracked separately so the competence achievements can reward it.
+      if(isReverse && grade >= 2) state.reverseCorrect = (state.reverseCorrect||0) + 1;
       if(grade === 0){ feedbackFX(b, false, "Again"); card.classList.add("flash-fx-bad"); }
       else if(grade === 1){ feedbackFXNeutral(b, "Hard"); card.classList.add("flash-fx-neutral"); }
       else if(grade === 2){ feedbackFX(b, true, "Good!"); card.classList.add("flash-fx-good"); }
@@ -2691,6 +2694,9 @@ function renderPracticeWrite(container){
     else { grade = 0; label = `${hwMistakes} wrong strokes — worth another look`; good = false; }
     if(good){ state.correctAnswers = (state.correctAnswers||0)+1; }
     else { state.wrongAnswers = (state.wrongAnswers||0)+1; }
+    // Only a flawless write counts toward the handwriting achievements -- "wrote it
+    // correctly" shouldn't include words that needed hints or wrong strokes along the way.
+    if(!skipped && hwMistakes === 0) state.writeCorrect = (state.writeCorrect||0) + 1;
     saveState();
     gradeCard(idx, grade);
     const afterPct = knowledgePercent(idx);

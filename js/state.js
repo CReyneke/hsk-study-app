@@ -84,6 +84,12 @@ function normalizeState(s){
   // quarter -- enough to exercise production regularly without the session stopping
   // feeling like review.
   if(!Number.isFinite(s.reverseRate) || s.reverseRate < 0 || s.reverseRate > 1) s.reverseRate = 0.25;
+  // additive: production counters, feeding the competence achievements. Kept separate
+  // from correctAnswers because these measure genuinely harder skills -- writing a
+  // character unaided, and recalling a word from its English meaning -- rather than
+  // picking the right option from four.
+  s.writeCorrect = s.writeCorrect || 0;
+  s.reverseCorrect = s.reverseCorrect || 0;
   return s;
 }
 
@@ -244,11 +250,50 @@ const ACHIEVEMENTS = [
   {id:"order_75", icon:"🏗️", name:"Syntax Master", desc:"75 correct word-order answers", check:d=>d.orderCorrect>=75},
   {id:"tf_20", icon:"✅", name:"Fact Checker", desc:"20 correct true/false answers", check:d=>d.tfCorrect>=20},
   {id:"tf_75", icon:"🔍", name:"Truth Seeker", desc:"75 correct true/false answers", check:d=>d.tfCorrect>=75},
-  {id:"avatar_collector", icon:"🎭", name:"Companion Collector", desc:"Unlock every companion avatar", check:d=>d.level>=40}
+  {id:"avatar_collector", icon:"🎭", name:"Companion Collector", desc:"Unlock every companion avatar", check:d=>d.level>=40},
+  /* Competence achievements: these describe what the learner can actually DO in Chinese,
+     rather than how much they've clicked. Everything above this line is a volume or habit
+     measure; useful, but none of it distinguishes a learner who knows 300 useful words
+     from one who has merely been shown 300 words. These use the frequency data and the
+     production modes to make claims that are true about ability. */
+  {id:"freq_100", icon:"🗝️", name:"Core Hundred", desc:"Know 100 of the 300 most common words", check:d=>d.knownTop300>=100},
+  {id:"freq_300", icon:"🏅", name:"Everyday Chinese", desc:"Know all 300 of the most common words", check:d=>d.knownTop300>=300},
+  {id:"freq_600", icon:"📖", name:"Wide Reader", desc:"Know 500 of the 600 most common words", check:d=>d.knownTop600>=500},
+  {id:"mature_200", icon:"🌲", name:"Long Memory", desc:"Hold 200 words at 3-week intervals", check:d=>d.mature>=200},
+  {id:"mature_500", icon:"🏔️", name:"Deep Reserves", desc:"Hold 500 words at 3-week intervals", check:d=>d.mature>=500},
+  {id:"write_25", icon:"✍️", name:"Steady Hand", desc:"Write 25 words correctly from the prompt", check:d=>d.writeCorrect>=25},
+  {id:"write_100", icon:"🖌️", name:"Calligrapher", desc:"Write 100 words correctly from the prompt", check:d=>d.writeCorrect>=100},
+  {id:"reverse_50", icon:"💬", name:"Finding Words", desc:"Recall 50 words from their English meaning", check:d=>d.reverseCorrect>=50},
+  {id:"reverse_200", icon:"🗣️", name:"Speaking Terms", desc:"Recall 200 words from their English meaning", check:d=>d.reverseCorrect>=200}
 ];
+// A word counts as "known" once its card has graduated into the long-term review queue.
+// Stronger than "seen once" and weaker than "mastered" -- the bar a claim like "you know
+// the 300 most common words" should have to clear.
+function knowsWord(idx){
+  const c = getCard(idx);
+  return !!c && c.state === "review";
+}
+// How many of the N most frequent words the learner knows. Frequency ranking comes from
+// WORD_FREQ (see js/word-freq.js), so this measures useful coverage rather than raw count.
+function knownWithinTopFrequency(n){
+  let count = 0;
+  for(let i = 0; i < VOCAB.length; i++){
+    if(freqRank(i) < n && knowsWord(i)) count++;
+  }
+  return count;
+}
 function computeDerivedStats(){
-  const started = Object.keys(state.cards).length;
-  const masteredKeys = Object.keys(state.cards).filter(k=>wordCategory(Number(k))==="mastered");
+  // "started" must mean the learner actually studied the word, NOT that a card exists.
+  // It used to be Object.keys(state.cards).length -- but the app auto-creates 12 cards a
+  // day on load, so the whole "start N words" achievement family unlocked simply by
+  // opening the app on enough days, with zero reviews done. Requiring the card to have
+  // left the "new" state makes those achievements earned rather than automatic.
+  const cardKeys = Object.keys(state.cards);
+  const started = cardKeys.filter(k=>{
+    const c = state.cards[k];
+    return c && c.state !== "new";
+  }).length;
+  const masteredKeys = cardKeys.filter(k=>wordCategory(Number(k))==="mastered");
   const mature = masteredKeys.length;
   const mastered1 = masteredKeys.filter(k=>vocabLevel(Number(k))===1).length;
   const mastered2 = masteredKeys.filter(k=>vocabLevel(Number(k))===2).length;
@@ -256,6 +301,10 @@ function computeDerivedStats(){
   return {
     started, mature,
     mastered1, mastered2, mastered3,
+    knownTop300: knownWithinTopFrequency(300),
+    knownTop600: knownWithinTopFrequency(600),
+    writeCorrect: state.writeCorrect||0,
+    reverseCorrect: state.reverseCorrect||0,
     streak: state.streak||0,
     totalReviews: state.totalReviews||0,
     correctAnswers: state.correctAnswers||0,
@@ -333,6 +382,26 @@ function markStudiedToday(){
 
 const NEW_PER_DAY = 12;
 const DUE_MS = 24*3600*1000;
+
+/* Interval thresholds that define what "familiar" and "mastered" mean. Shared by
+   wordCategory(), the Library filters and the XP retention bonus, so the app can never
+   call a word mastered in one place and not another. */
+const FAMILIAR_INTERVAL_DAYS = 4;
+const MASTERED_INTERVAL_DAYS = 21;
+
+/* XP economy: a flat amount per graded review, and nothing else.
+
+   The obvious refinement -- bonuses for a card graduating, or for crossing the
+   three-week retention threshold -- turns out to reintroduce exactly the problem it was
+   meant to solve. Those are schedule milestones, and *accelerating the schedule is
+   precisely what "Easy" does*: on a card sitting at 8 days, Easy jumps to 26 and collects
+   the retention bonus while Good lands on 20 and collects nothing. Measured before this
+   was corrected: Again 5 XP, Easy 15 XP. Any bonus keyed to schedule position is reachable
+   sooner by overstating recall, so there is no safe version of it.
+
+   Milestones still get celebrated -- through the achievements list, which is one-time and
+   isn't a per-review incentive treadmill. */
+const REVIEW_XP = 5;      // every graded review, whichever button was pressed
 
 /* ============================ SRS (Anki's real SM-2-based algorithm) ============================
    Matches Anki's documented default scheduler (faqs.ankiweb.net/what-spaced-repetition-algorithm):
@@ -692,7 +761,6 @@ function previewInterval(idx, grade){
 function gradeCard(idx, grade){
   const c = ensureCard(idx);
   const now = Date.now();
-  const originalState = c.state;
   const r = scheduleAfterGrade(c, grade);
   c.state = r.state;
   c.step = r.step;
@@ -719,11 +787,18 @@ function gradeCard(idx, grade){
   if(grade >= 2) rl.ok += 1;
   state.reviewLog[reviewLogT] = rl;
   saveState();
-  // XP: a little for effort even on Again, more for Hard/Good/Easy, plus a bonus
-  // the moment a card first graduates into the long-term review queue.
-  let xp = grade === 0 ? 1 : grade === 1 ? 3 : grade === 2 ? 6 : 8;
-  if(originalState !== "review" && c.state === "review") xp += 4;
-  awardXP(xp);
+  /* XP is deliberately GRADE-NEUTRAL.
+
+     It used to pay 1/3/6/8 for Again/Hard/Good/Easy -- which meant the button worth 8x
+     the most was also the one that pushed the card furthest away. That paid the learner
+     to claim they knew things they didn't, and an SRS fed dishonest grades doesn't just
+     mis-award points, it schedules wrongly and the learning stops. It also worked against
+     the interval preview on those buttons, whose whole purpose is honest grading.
+
+     Now every honestly graded review is worth exactly the same, so admitting a lapse
+     costs nothing at all. Deliberately flat with no milestone bonuses -- see REVIEW_XP
+     for why schedule-based bonuses cannot be made grade-neutral. */
+  awardXP(REVIEW_XP);
 }
 
 // Small progress header ("N / M words started · X%") shown above the Flashcards
