@@ -462,6 +462,20 @@
     border-radius:18px;padding:12px;margin-bottom:10px;
   }
 
+  /* Sync conflict notice: shown when a pull would have wiped most of this device's
+     progress, so the choice is handed to the user instead of applied silently. */
+  .sync-conflict{
+    border:3px solid var(--red);border-radius:12px;padding:10px 12px;margin-bottom:10px;
+    background:var(--accent-tint);font-size:13px;
+  }
+  /* Shown once if localStorage is unavailable (private mode, quota exceeded). Deliberately
+     loud and full-width -- silently failing to save progress is the worst outcome here. */
+  .storage-warning{
+    position:fixed;top:0;left:0;right:0;z-index:1400;
+    background:var(--red);color:var(--white);
+    font-family:var(--sans);font-size:13px;font-weight:700;line-height:1.4;
+    padding:10px 14px;text-align:center;box-shadow:0 3px 0 var(--black);
+  }
   .levelup-toast{
     position:fixed;top:16px;left:50%;transform:translateX(-50%);
     font-family:var(--sans);font-size:14px;

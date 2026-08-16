@@ -91,16 +91,72 @@ function stateContentSnapshot(){
 }
 let _lastContentSnapshot = stateContentSnapshot();
 
-// Replaces the shared global `state` in place (classic scripts share one scope, so this
-// is visible to state.js/ui.js/app.js immediately) and re-runs the load-time steps that
-// depend on it, without re-running anything that would double-count.
-function adoptRemoteState(remote){
-  state = remote;
+/* ---- Guarding against a bad pull ----
+   Adopting a remote state overwrites everything local, so it's the one operation here
+   that can destroy real work. Two safeguards: keep a copy of what was replaced, and
+   refuse to do it silently when the incoming state looks like it has lost most of the
+   learner's progress (a half-written gist, a hand-edited one, or a device that was
+   somehow reset). In that case the user is asked rather than obeyed. */
+const SYNC_BACKUP_KEY = "hsk3_srs_v1_backup";
+
+function backupLocalState(){
+  try{
+    localStorage.setItem(SYNC_BACKUP_KEY, JSON.stringify({ savedAt: Date.now(), state: state }));
+  }catch(e){ console.error("Could not back up local state before sync", e); }
+}
+function hasLocalBackup(){
+  try{ return !!localStorage.getItem(SYNC_BACKUP_KEY); }catch(e){ return false; }
+}
+function restoreLocalBackup(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(SYNC_BACKUP_KEY));
+    if(!raw || !raw.state) return false;
+    // Adopt without the safety check -- the user explicitly asked for this copy.
+    applyState(raw.state);
+    return true;
+  }catch(e){ console.error("Could not restore backup", e); return false; }
+}
+
+// Would adopting `remote` throw away a meaningful amount of local progress? Only
+// meaningful once there's something to lose, hence the floor on local card count.
+function remoteLosesProgress(remote){
+  const localCards = Object.keys((state && state.cards) || {}).length;
+  const remoteCards = Object.keys((remote && remote.cards) || {}).length;
+  if(localCards < 20) return false;
+  return remoteCards < localCards * 0.5;
+}
+
+// Swaps in a new state object and re-runs the load-time steps that depend on it, without
+// re-running anything that would double-count. normalizeState() is essential here: the
+// incoming state was written by whatever app version the other device runs, so fields
+// added since then would otherwise arrive undefined (this previously crashed the
+// Practice tab on `state.lastPracticeSet.fill`).
+function applyState(next){
+  state = normalizeState(next);
   _lastContentSnapshot = stateContentSnapshot(); // don't immediately echo this pull back as a push
   _originalSaveState();
   introduceNewCardsForToday();
   checkAchievements();
   render();
+}
+
+// A remote state pending the user's decision, when auto-adopting looked unsafe.
+let pendingRemote = null;
+
+function adoptRemoteState(remote){
+  backupLocalState();
+  applyState(remote);
+}
+// Adopt unless it would silently destroy local progress; returns true if it was applied.
+function adoptRemoteStateGuarded(remote){
+  if(remoteLosesProgress(remote)){
+    pendingRemote = remote;
+    setSyncStatus("conflict");
+    renderSyncPanel();
+    return false;
+  }
+  adoptRemoteState(remote);
+  return true;
 }
 
 let pushTimer = null;
@@ -145,7 +201,7 @@ async function connectSync(token){
       // rather than risking this device's local state winning an updatedAt tie-break
       // just because it's undefined/0 on both sides for a brand-new device.
       const remote = await pullState();
-      if(remote) adoptRemoteState(remote);
+      if(remote){ if(!adoptRemoteStateGuarded(remote)) return; }
       else await pushState();
     } else {
       // First device to ever connect this token: its current progress becomes the
@@ -179,7 +235,7 @@ async function syncNow(){
   try{
     const remote = await pullState();
     if(remote && (remote.updatedAt||0) > (state.updatedAt||0)){
-      adoptRemoteState(remote);
+      if(!adoptRemoteStateGuarded(remote)) return;
     } else if((state.updatedAt||0) > (remote && remote.updatedAt||0)){
       await pushState();
     }
@@ -196,7 +252,9 @@ async function initialSyncPull(){
   setSyncStatus("checking");
   try{
     const remote = await pullState();
-    if(remote && (remote.updatedAt||0) > (state.updatedAt||0)) adoptRemoteState(remote);
+    if(remote && (remote.updatedAt||0) > (state.updatedAt||0)){
+      if(!adoptRemoteStateGuarded(remote)) return;
+    }
     setSyncStatus("synced");
   }catch(e){
     console.error("Initial sync pull failed", e);
@@ -218,7 +276,8 @@ function setSyncStatus(s, detail){
   syncStatus = s;
   syncStatusDetail = detail || "";
   const dot = document.querySelector(".sync-fab .dot");
-  if(dot) dot.className = "dot " + (s==="synced"?"ok":s==="pending"||s==="checking"?"pending":s==="error"?"error":"");
+  // A conflict shares the error colour: both mean "this needs you to look at it".
+  if(dot) dot.className = "dot " + (s==="synced"?"ok":s==="pending"||s==="checking"?"pending":(s==="error"||s==="conflict")?"error":"");
 }
 
 function lastSyncedText(){
@@ -268,14 +327,29 @@ function renderSyncPanel(){
       </div>
       <div class="card" style="margin-top:12px;">
         ${connected ? `
+          ${pendingRemote ? `
+            <div class="sync-conflict">
+              <b>The cloud copy has much less progress than this device.</b>
+              <p class="muted" style="margin:6px 0;">
+                This device has ${Object.keys(state.cards||{}).length} words started; the cloud copy has
+                ${Object.keys((pendingRemote&&pendingRemote.cards)||{}).length}.
+                Nothing has been changed. Pick which one to keep.
+              </p>
+              <div class="flash-controls">
+                <button class="secondary" id="syncKeepLocal">Keep this device</button>
+                <button class="secondary" id="syncUseRemote">Use the cloud copy</button>
+              </div>
+            </div>
+          ` : ""}
           <div class="stat-row">
-            <div class="stat"><div class="num" style="font-size:16px;">${syncStatus==="error"?"⚠️":"✅"}</div><div class="lbl">${syncStatus}</div></div>
+            <div class="stat"><div class="num" style="font-size:16px;">${syncStatus==="error"?"⚠️":syncStatus==="conflict"?"⚠️":"✅"}</div><div class="lbl">${syncStatus}</div></div>
             <div class="stat"><div class="num" style="font-size:16px;">${lastSyncedText()}</div><div class="lbl">Last synced</div></div>
           </div>
           ${syncStatus==="error" ? `<p class="muted" style="color:var(--red);">${syncStatusDetail}</p>` : ""}
           <div class="flash-controls">
             <button class="secondary" id="syncNowBtn">Sync now</button>
             <button class="secondary" id="syncDisconnectBtn">Disconnect</button>
+            ${hasLocalBackup() ? `<button class="secondary" id="syncRestoreBtn">Restore backup</button>` : ""}
           </div>
         ` : `
           <p class="muted">Paste a GitHub personal access token (scope: <b>gist</b> only) to sync progress between your phone and computer. Use the <b>same token on every device</b> -- the app finds your progress automatically, no codes to copy.</p>
@@ -293,6 +367,32 @@ function renderSyncPanel(){
     document.getElementById("syncDisconnectBtn").onclick = ()=>{
       if(confirm("Disconnect sync on this device? Your local progress stays, but it will stop mirroring to the cloud.")) disconnectSync();
     };
+    const restoreBtn = document.getElementById("syncRestoreBtn");
+    if(restoreBtn) restoreBtn.onclick = ()=>{
+      if(!confirm("Replace this device's progress with the backup taken before the last sync?")) return;
+      if(restoreLocalBackup()){ pendingRemote = null; setSyncStatus("synced"); }
+      renderSyncPanel();
+    };
+    if(pendingRemote){
+      // Keeping this device wins the conflict by pushing local up, which also stops the
+      // same smaller remote from being offered again on the next pull.
+      document.getElementById("syncKeepLocal").onclick = ()=>{
+        pendingRemote = null;
+        state.updatedAt = Date.now();
+        _originalSaveState();
+        setSyncStatus("pending");
+        pushState().then(()=> setSyncStatus("synced")).catch(e=> setSyncStatus("error", e.message))
+          .finally(()=> renderSyncPanel());
+        renderSyncPanel();
+      };
+      document.getElementById("syncUseRemote").onclick = ()=>{
+        const remote = pendingRemote;
+        pendingRemote = null;
+        adoptRemoteState(remote);   // backs up local first
+        setSyncStatus("synced");
+        renderSyncPanel();
+      };
+    }
   } else {
     document.getElementById("syncConnectBtn").onclick = ()=>{
       const val = document.getElementById("syncTokenInput").value.trim();

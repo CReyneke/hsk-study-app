@@ -1,11 +1,21 @@
 /* ============================ STATE ============================ */
 const STORAGE_KEY = "hsk3_srs_v1";
-function loadState(){
-  let s = null;
-  try{ s = JSON.parse(localStorage.getItem(STORAGE_KEY)); }catch(e){}
-  if(!s){
-    s = { cards:{}, order:[], streak:0, lastActiveDay:null, totalReviews:0 };
-  }
+
+/* Brings any save up to the shape the current code expects, filling in every field
+   added since that save was written.
+
+   This MUST be applied to every state object entering the app, not just the one read
+   from localStorage -- cross-device sync adopts a state written by whatever version the
+   other device was running, and skipping this step leaves newer fields undefined. That
+   was a real crash: a device syncing from an older one arrived with no
+   state.lastPracticeSet, and the Practice tab died on `state.lastPracticeSet.fill`. */
+function normalizeState(s){
+  if(!s || typeof s !== "object") s = {};
+  if(!s.cards || typeof s.cards !== "object") s.cards = {};
+  if(!Array.isArray(s.order)) s.order = [];
+  s.streak = s.streak || 0;
+  if(s.lastActiveDay === undefined) s.lastActiveDay = null;
+  s.totalReviews = s.totalReviews || 0;
   // backfill fields for saves created before the gamification update
   s.xp = s.xp || 0;
   s.correctAnswers = s.correctAnswers || 0;
@@ -66,7 +76,37 @@ function loadState(){
   if(!Array.isArray(s.practiceCategories) || s.practiceCategories.length === 0) s.practiceCategories = ["learning","familiar","mastered"];
   return s;
 }
-function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function loadState(){
+  let s = null;
+  try{ s = JSON.parse(localStorage.getItem(STORAGE_KEY)); }catch(e){}
+  return normalizeState(s);
+}
+
+// Persistence can genuinely fail -- Safari in private mode throws on setItem, and so
+// does exceeding the storage quota. saveState() is called from gradeCard() and every
+// practice mode, so letting it throw would break grading outright. Fail soft instead,
+// and tell the user once rather than silently losing their progress.
+let _storageWarned = false;
+function warnStorageUnavailable(){
+  if(_storageWarned) return;
+  _storageWarned = true;
+  try{
+    const bar = document.createElement("div");
+    bar.className = "storage-warning";
+    bar.textContent = "Progress can't be saved on this device — check that your browser allows site storage (private mode blocks it).";
+    document.body.appendChild(bar);
+    setTimeout(()=> bar.remove(), 12000);
+  }catch(e){ /* pre-DOM or hostile environment: the console message below still stands */ }
+}
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    console.error("Could not save progress to localStorage", e);
+    warnStorageUnavailable();
+  }
+}
 
 let state = loadState();
 
@@ -234,27 +274,44 @@ function dayOfYear(){
   const diff = now - start;
   return Math.floor(diff / 86400000);
 }
-// update streak on load
-(function updateStreak(){
+/* ---- Streak ----
+   Previously this ran on page load and did `state.streak += 1` with no gap check at all,
+   so (a) returning after months away *continued* the streak instead of resetting it, and
+   (b) merely opening the app counted as a day studied. Both are fixed below: the streak
+   only advances when a card is actually graded (see markStudiedToday, called from
+   gradeCard), and a missed day resets it. */
+
+// Parses a todayStr()-format key ("YYYY-M-D", not zero-padded) into a local-midnight
+// Date. Deliberately explicit rather than `new Date(str)`, whose handling of
+// non-padded, non-ISO strings varies by browser.
+function parseDayKey(key){
+  if(typeof key !== "string") return null;
+  const p = key.split("-").map(Number);
+  if(p.length !== 3 || p.some(n => !Number.isFinite(n))) return null;
+  const d = new Date(p[0], p[1] - 1, p[2]);
+  return isNaN(d.getTime()) ? null : d;
+}
+// Whole days from day key `a` to day key `b`, or null if either is unparseable.
+function daysBetweenKeys(a, b){
+  const da = parseDayKey(a), db = parseDayKey(b);
+  if(!da || !db) return null;
+  return Math.round((db - da) / 86400000);
+}
+
+// Records that the learner studied today, advancing or resetting the streak. Safe to
+// call on every graded review -- it no-ops once today is already counted. Returns true
+// only when today was newly counted, so callers can react to a streak change.
+function markStudiedToday(){
   const t = todayStr();
-  if(state.lastActiveDay !== t){
-    const prev = state.lastActiveDay;
-    if(prev){
-      const prevDate = new Date(prev.split("-").map((v,i)=> i===1? v-1 : Number(v)).join("-"));
-    }
-    // simple streak: if last active was "yesterday" (approx by date diff <=1 day) increment, else reset to 1
-    if(prev){
-      const p = new Date(prev); // may be invalid, fallback fine
-    }
-    state.streak = (state.streak||0);
-    state.streak += 1;
-    state.lastActiveDay = t;
-    // additive: track the longest streak ever reached, for the Today-tab stats
-    // widget (distinct from state.streak, which is the *current* run and can reset).
-    state.longestStreak = Math.max(state.longestStreak||0, state.streak);
-    saveState();
-  }
-})();
+  if(state.lastActiveDay === t) return false;
+  const gap = daysBetweenKeys(state.lastActiveDay, t);
+  // gap === 1 continues the run; anything else (first ever study, a missed day, or a
+  // clock moving backwards) starts a fresh one.
+  state.streak = (gap === 1) ? (state.streak || 0) + 1 : 1;
+  state.lastActiveDay = t;
+  state.longestStreak = Math.max(state.longestStreak || 0, state.streak);
+  return true;
+}
 
 const NEW_PER_DAY = 12;
 const DUE_MS = 24*3600*1000;
@@ -588,6 +645,10 @@ function gradeCard(idx, grade){
     }
   }
   state.totalReviews = (state.totalReviews||0) + 1;
+  // A graded review is what counts as "studied today" for the streak -- this is the one
+  // path every flashcard AND practice mode funnels through, so hooking it here covers
+  // them all without the streak advancing merely because the app was opened.
+  markStudiedToday();
   // Bookkeeping only (does not affect scheduling): tally today's review count and
   // how many were graded Good/Easy, for the Today-tab "reviews today" / "today's
   // accuracy" stats.
